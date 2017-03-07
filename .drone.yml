@@ -1,0 +1,21 @@
+---
+workspace:
+  base: /go
+  path: src/github.com/${DRONE_REPO}
+
+pipeline:
+  test:
+    image: golang:1.8
+    commands:
+      - mkdir -p /go/bin
+      - "curl -s https://glide.sh/get | sh"
+      - glide install
+      - go vet $(go list ./... | grep -v /vendor)
+      - go test -cover $(go list ./... | grep -v /vendor)
+      - go build $(go list ./... | grep -v /vendor)
+
+matrix:
+  GO_VERSION:
+    - latest
+    - "1.8"
+    - "1.7"
