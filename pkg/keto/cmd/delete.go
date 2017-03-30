@@ -28,7 +28,7 @@ import (
 
 // deleteCmd represents the create command
 var deleteCmd = &cobra.Command{
-	Use:          "delete <" + strings.Join(resourceTypes, "|") + "> <name>",
+	Use:          "delete <" + strings.Join(resourceTypes, "|") + "> <NAME>",
 	Short:        "Delete a resource",
 	Long:         "Delete a resource",
 	SuggestFor:   []string{"remove"},

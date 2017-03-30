@@ -22,7 +22,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
+	"github.com/UKHomeOffice/keto/pkg/model"
 )
 
 const (
@@ -34,6 +34,7 @@ const (
 )
 
 var (
+	clusterColumns  = []string{"NAME"}
 	nodePoolColumns = []string{"NAME", "CLUSTER", "MACHINETYPE", "OSVERSION"}
 )
 
@@ -44,14 +45,14 @@ func GetPrinter(out io.Writer) *tabwriter.Writer {
 
 // PrintNodePool formats a slice of node pools into [][]string format with
 // optional headers and calls writeToPrinter to write to w.
-func PrintNodePool(w *tabwriter.Writer, pools cloudprovider.NodePools, headers bool) error {
+func PrintNodePool(w *tabwriter.Writer, pools []*model.NodePool, headers bool) error {
 	// TODO
 	data := [][]string{}
 	if headers {
 		data = append(data, nodePoolColumns)
 	}
 	for _, p := range pools {
-		data = append(data, []string{p.Name, p.ClusterName, p.InstanceType, p.OSVersion})
+		data = append(data, []string{p.Name, p.ClusterName, p.MachineType, p.OSVersion})
 	}
 	fmt.Fprintln(w, formatData(data))
 	if err := w.Flush(); err != nil {

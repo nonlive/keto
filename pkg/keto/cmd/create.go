@@ -17,20 +17,20 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
+	"github.com/UKHomeOffice/keto/pkg/model"
 
 	"github.com/spf13/cobra"
 )
 
 // createCmd represents the create command
 var createCmd = &cobra.Command{
-	Use:          "create <" + strings.Join(resourceTypes, "|") + "> <name>",
+	Use:          "create <" + strings.Join(resourceTypes, "|") + "> <NAME>",
 	Short:        "Create a resource",
-	Long:         "Create a resource",
+	Long:         "Create a cluster or add a new computepool to existing cluster",
 	ValidArgs:    resourceTypes,
 	SilenceUsage: true,
 	PreRunE: func(c *cobra.Command, args []string) error {
@@ -52,41 +52,100 @@ func validateCreateFlags(c *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid resource type.\n" + validTypes)
 	}
 
-	// Check if mandatory flags are set when creating a nodepool
-	if args[0] == "nodepool" {
+	// Check if mandatory flags are set when creating a computepool
+	if args[0] == "computepool" || args[0] == "masterpool" {
 		if !c.Flags().Changed("cluster") {
 			return fmt.Errorf("cluster name must be set")
-
 		}
-		// TODO: add other flags validation
+	}
+
+	// At this point a cluster already exists, masterpool should be created in
+	// the same networks.
+	if args[0] != "masterpool" {
+		if !c.Flags().Changed("networks") {
+			return fmt.Errorf("networks must be set")
+		}
+	}
+
+	// TODO(vaijab): should not be required. Cloud provivers could have sensible defaults.
+	if !c.Flags().Changed("machine-type") {
+		return fmt.Errorf("machine type must be set")
 	}
 	return nil
 }
 
 func runCreate(c *cobra.Command, args []string) error {
-	clusterName, err := c.Flags().GetString("cluster")
-	if err != nil {
-		return err
-	}
-
 	client, err := newClient(c)
 	if err != nil {
 		return err
 	}
 
-	res := args[0]
+	resType := args[0]
 	resName := args[1]
 
-	if res == "nodepool" {
-		if err := client.ctrl.CreateNodePool(clusterName, resName); err != nil {
+	clusterName, err := c.Flags().GetString("cluster")
+	if err != nil {
+		return err
+	}
+	kubeVersion, err := c.Flags().GetString("kube-version")
+	if err != nil {
+		return err
+	}
+	machineType, err := c.Flags().GetString("machine-type")
+	if err != nil {
+		return err
+	}
+	diskSize, err := c.Flags().GetInt("disk-size")
+	if err != nil {
+		return err
+	}
+	networks, err := c.Flags().GetStringSlice("networks")
+	if err != nil {
+		return err
+	}
+
+	if resType == "cluster" {
+		cluster := model.Cluster{}
+		cluster.Name = resName
+		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, machineType, networks, diskSize)
+
+		if err := client.ctrl.CreateCluster(cluster); err != nil {
 			return err
 		}
-	} else {
-		// TODO: implement creating clusters
-		return errors.New("not implemented")
+	}
+
+	if resType == "masterpool" {
+		pool := model.MasterPool{}
+		pool = makeMasterPool(resName, clusterName, kubeVersion, machineType, networks, diskSize)
+
+		if err := client.ctrl.CreateMasterPool(pool); err != nil {
+			return err
+		}
+	}
+
+	if resType == "computepool" {
+		// pool := model.ComputePool{}
+		// pool.Name = resName
+		// pool.ClusterName = clusterName
+
+		// if err := client.ctrl.CreateComputePool(pool); err != nil {
+		// 	return err
+		// }
+		return fmt.Errorf("not implemented")
 	}
 
 	return nil
+}
+
+func makeMasterPool(name, clusterName, kubeVersion, machineType string, networks []string, diskSize int) model.MasterPool {
+	p := model.MasterPool{}
+	p.Name = name
+	p.ClusterName = clusterName
+	p.KubeVersion = kubeVersion
+	p.Networks = networks
+	p.DiskSize = diskSize
+	p.MachineType = machineType
+	return p
 }
 
 func init() {
@@ -95,8 +154,8 @@ func init() {
 	// Add flags that are relevant to create cmd.
 	addClusterFlag(createCmd)
 	addNetworksFlag(createCmd)
-	addKindFlag(createCmd)
 	addOSFlag(createCmd)
+	addDiskSizeFlag(createCmd)
 	addMachineTypeFlag(createCmd)
 	addSizeFlag(createCmd)
 	addDNSZoneFlag(createCmd)

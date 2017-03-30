@@ -1,6 +1,9 @@
 package userdata
 
-import "errors"
+import (
+	"bytes"
+	"text/template"
+)
 
 // UserData defines a user data struct
 type UserData struct {
@@ -11,15 +14,64 @@ func New() *UserData {
 	return &UserData{}
 }
 
-// Generate returns a compiled
-func (u *UserData) Generate(kind string) ([]byte, error) {
-	switch kind {
-	case "etcd":
-		return EtcdTemplate, nil
-	case "master":
-		return MasterTemplate, nil
-	case "compute":
-		return ComputeTemplate, nil
+// RenderMasterCloudConfig renders a master cloud-config.
+func (u UserData) RenderMasterCloudConfig(
+	clusterName string,
+	kubeVersion string,
+	kubeAPIURL string,
+	masterPersistentIPs []string,
+) ([]byte, error) {
+
+	const masterTemplate = `#cloud-config
+coreos:
+  update:
+    reboot-strategy: "off"
+# TODO {{ .MasterPersistentIPs }}
+`
+
+	data := struct {
+		ClusterName         string
+		KubeVersion         string
+		KubeAPIURL          string
+		MasterPersistentIPs []string
+	}{
+		ClusterName:         clusterName,
+		KubeVersion:         kubeVersion,
+		KubeAPIURL:          kubeAPIURL,
+		MasterPersistentIPs: masterPersistentIPs,
 	}
-	return []byte{}, errors.New("no template for this node pool kind")
+
+	t := template.Must(template.New("master-cloud-config").Parse(masterTemplate))
+	var b bytes.Buffer
+	if err := t.Execute(&b, data); err != nil {
+		return b.Bytes(), err
+	}
+
+	return b.Bytes(), nil
+}
+
+// RenderComputeCloudConfig renders a compute cloud-config.
+func (u UserData) RenderComputeCloudConfig(kubeVersion, kubeAPIURL string) ([]byte, error) {
+	const computeTemplate = `#cloud-config
+coreos:
+  update:
+    reboot-strategy: "off"
+# TODO
+`
+
+	data := struct {
+		KubeVersion string
+		KubeAPIURL  string
+	}{
+		KubeVersion: kubeVersion,
+		KubeAPIURL:  kubeAPIURL,
+	}
+
+	t := template.Must(template.New("compute-cloud-config").Parse(computeTemplate))
+	var b bytes.Buffer
+	if err := t.Execute(&b, data); err != nil {
+		return b.Bytes(), err
+	}
+
+	return b.Bytes(), nil
 }

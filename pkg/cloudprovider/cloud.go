@@ -16,56 +16,66 @@ limitations under the License.
 
 package cloudprovider
 
+import (
+	"github.com/UKHomeOffice/keto/pkg/model"
+)
+
 // Interface is an abstract interface for cloud providers.
 type Interface interface {
-	// Clusterer returns a clusters interface. Also returns true if the
-	// interface is supported, false otherwise.
-	// Clusterer() (Clusterer, bool)
-	// NodePoolManager returns a node pools interface. Also returns true if the
-	// interface is supported, false otherwise.
-	NodePooler() (NodePooler, bool)
 	// ProviderName returns the cloud provider name.
 	ProviderName() string
+	// Clusters returns a clusters interface. Also returns true if the
+	// interface is supported, false otherwise.
+	Clusters() (Clusters, bool)
+	// NodePooler returns a node pools interface. Also returns true if the
+	// interface is supported, false otherwise.
+	NodePooler() (NodePooler, bool)
+	// LoadBalancer returns a load balancer interface. Also returns true if the
+	// interface is supported, false otherwise.
+	LoadBalancer() (LoadBalancer, bool)
 }
 
-// Clusterer is an abstract interface for clusters of node pools.
-// type Clusterer interface {
-// 	// CreateCluster creates a new cluster.
-// 	CreateCluster() error
-// 	// ListCluster returns a list of clusters.
-// 	ListClusters(clusterName string) (Clusters, error)
-// 	// DescribeCluster describes a given cluster.
-// 	DescribeCluster() error
-// 	// UpgradeCluster upgrades nodepools in the cluster.
-// 	UpgradeCluster() error
-// 	// DeleteCluster deletes entire cluster.
-// 	DeleteCluster() error
-// }
+// Clusters is an abstract interface for clusters.
+type Clusters interface {
+	// CreateCluster creates a new cluster.
+	CreateCluster(model.Cluster) error
+	// ListClusters returns a list of clusters in the cloud account.
+	ListClusters(string) ([]*model.Cluster, error)
+	// DescribeCluster describes a given cluster.
+	// TODO
+	DescribeCluster(string) error
+	// DeleteCluster deletes a cluster.
+	// TODO
+	DeleteCluster(string) error
+	// GetMasterPersistentIPs returns a list of master persistent IPs for a given clusterName.
+	GetMasterPersistentIPs(clusterName string) ([]string, error)
+	// GetKubeAPIURL returns a full URL to Kubernetes API.
+	GetKubeAPIURL(clusterName string) (string, error)
+}
 
 // NodePooler is an abstract interface for node pools.
 type NodePooler interface {
-	// CreatePool creates a new node pool.
-	CreateNodePool(nodePool NodePool) error
-	// ListNodePools returns a list of node pools that are part of a given clusterName.
-	ListNodePools(clusterName string) (NodePools, error)
+	// CreateMasterPool creates a new master node pool.
+	CreateMasterPool(pool model.MasterPool) error
+	// CreateComputePool creates a new compute node pool.
+	CreateComputePool(pool model.ComputePool) error
+	// ListNodePools returns a list of node pools in the cloud account.
+	ListNodePools(clusterName string) ([]*model.NodePool, error)
 	// DescribeNodePool describes a given node pool.
+	// TODO
 	DescribeNodePool() error
 	// UpgradePool upgrades a node pool.
-	UpgradeNodePool(nodePool NodePool) error
+	// TODO
+	UpgradeNodePool() error
 	// DeleteNodePool deletes a node pool.
-	DeleteNodePool(clusterName string, name string) error
+	// TODO
+	DeleteNodePool(clusterName, name string) error
 }
 
-// BuildNodePoolName returns a node pool name.
-func BuildNodePoolName(clusterName, poolName, poolKind string) string {
-	var name string
-	switch poolKind {
-	case "etcd":
-		name = clusterName + "-etcd"
-	case "master":
-		name = clusterName + "-master"
-	default:
-		name = clusterName + "-" + poolName
-	}
-	return name
+// LoadBalancer is an abstract interface for managing load balancers.
+type LoadBalancer interface {
+	CreateLoadBalancer(p model.MasterPool) error
+	GetLoadBalancer(clusterName string) error
+	UpdateLoadBalancer() error
+	DeleteLoadBalancer(clusterName string) error
 }
