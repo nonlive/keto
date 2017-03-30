@@ -29,10 +29,8 @@ import (
 )
 
 var (
-	// nodePoolKinds contains a list of currently supported node pools kinds.
-	nodePoolKinds = []string{"master", "etcd", "compute"}
 	// resourceTypes contains a list of currently supported resource types.
-	resourceTypes = []string{"nodepool", "cluster"}
+	resourceTypes = []string{"cluster", "masterpool", "computepool"}
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
@@ -73,11 +71,6 @@ func newClient(c *cobra.Command) (*client, error) {
 		return &client{}, err
 	}
 
-	// cloudConfigFile := ""
-	// if c.Flags().Changed("cloud-config") {
-	// 	cloudConfigFile, _ = c.Flags().GetString("cloud-config")
-	// }
-
 	cloud, err := cloudprovider.InitCloudProvider(cloudName, nil)
 	if err != nil {
 		return &client{}, err
@@ -100,7 +93,7 @@ func init() {
 	// Global flags
 	RootCmd.PersistentFlags().String("cloud", "",
 		"Cloud provider name. Supported providers: "+strings.Join(cloudprovider.CloudProviders(), ", "))
-	RootCmd.PersistentFlags().String("cloud-config", "", "Cloud provider config file.")
+	RootCmd.PersistentFlags().String("cloud-config", "", "Cloud provider config file")
 }
 
 // addClusterFlag adds a cluster flag
@@ -113,14 +106,14 @@ func addNetworksFlag(c *cobra.Command) {
 	c.Flags().StringSlice("networks", []string{}, "Cloud specific list of comma separated networks")
 }
 
-// addKindFlag adds a kind flag
-func addKindFlag(c *cobra.Command) {
-	c.Flags().String("kind", "", "Node pool kind. Supported kinds: "+strings.Join(nodePoolKinds, ", "))
-}
-
 // addOSFlag adds an OS flag
 func addOSFlag(c *cobra.Command) {
 	c.Flags().String("os", "", "Operating system")
+}
+
+// addDiskSizeFlag adds a disk-size flag
+func addDiskSizeFlag(c *cobra.Command) {
+	c.Flags().Int("disk-size", 10, "Node boot disk size in GB")
 }
 
 // addMachineTypeFlag adds a machine type flag
@@ -130,7 +123,7 @@ func addMachineTypeFlag(c *cobra.Command) {
 
 // addSizeFlag adds a size flag
 func addSizeFlag(c *cobra.Command) {
-	c.Flags().Count("size", "Node pool size")
+	c.Flags().Int("size", 0, "Number of nodes in the compute pool")
 }
 
 // addDNSZoneFlag adds a DNS zone flag
@@ -140,10 +133,10 @@ func addDNSZoneFlag(c *cobra.Command) {
 
 // addLabelsFlag adds labels flag
 func addLabelsFlag(c *cobra.Command) {
-	c.Flags().StringSlice("labels", []string{}, "List of labels in comma separated key=value format")
+	c.Flags().StringSlice("labels", []string{}, "List of labels in a comma separated key=value format")
 }
 
 // addKubeVersionFlag adds a kubernetes version flag
 func addKubeVersionFlag(c *cobra.Command) {
-	c.Flags().String("kube-version", "", "Kubernetes version")
+	c.Flags().String("kube-version", "v1.6.0-rc.1", "Kubernetes version")
 }

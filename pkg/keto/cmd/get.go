@@ -30,7 +30,7 @@ import (
 
 // getCmd represents the get command
 var getCmd = &cobra.Command{
-	Use:          "get <" + strings.Join(resourceTypes, "|") + "> [name]",
+	Use:          "get <" + strings.Join(resourceTypes, "|") + "> [NAME]",
 	Short:        "Get a resource",
 	Long:         "Get a resource",
 	SuggestFor:   []string{"list"},

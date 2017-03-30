@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
+	"github.com/UKHomeOffice/keto/pkg/model"
 	"github.com/UKHomeOffice/keto/pkg/userdata"
 )
 
@@ -32,7 +33,6 @@ var (
 // Controller represents a controller.
 type Controller struct {
 	Config
-	p cloudprovider.NodePooler
 }
 
 // Config represents a controller configuration.
@@ -55,48 +55,90 @@ func New(cfg Config) *Controller {
 	return &Controller{Config: cfg}
 }
 
-// CreateEtcdNodePool creates an etcd node pool.
-// func (c *Controller) CreateEtcdNodePool() error {
-// 	pooler, _ := c.Cloud.NodePooler()
-// 	pooler.
-
-// 	return nil
-// }
-
-// ListNodePools returns a list of node pools
-func (c *Controller) ListNodePools(clusterName string) (cloudprovider.NodePools, error) {
-	pooler, impl := c.Cloud.NodePooler()
+// CreateCluster creates a new cluster, which includes master node pool and
+// other supported resources that make up a cluster.
+func (c *Controller) CreateCluster(cluster model.Cluster) error {
+	cl, impl := c.Cloud.Clusters()
 	if !impl {
-		return cloudprovider.NodePools{}, ErrNotImplemented
+		return ErrNotImplemented
+	}
+	lb, impl := c.Cloud.LoadBalancer()
+	if !impl {
+		return ErrNotImplemented
 	}
 
-	pools, err := pooler.ListNodePools(clusterName)
-	if err != nil {
-		return cloudprovider.NodePools{}, err
+	if err := cl.CreateCluster(cluster); err != nil {
+		return err
 	}
-	return pools, nil
+
+	if err := c.CreateMasterPool(cluster.MasterPool); err != nil {
+		return err
+	}
+
+	if err := lb.CreateLoadBalancer(cluster.MasterPool); err != nil {
+		return err
+	}
+
+	// TODO Create DNS records
+	// TODO Create compute pool
+	return nil
 }
 
-// CreateNodePool create a node pool
-func (c *Controller) CreateNodePool(clusterName, poolName string) error {
+// CreateMasterPool create a compute node pool.
+func (c *Controller) CreateMasterPool(p model.MasterPool) error {
+	pooler, impl := c.Cloud.NodePooler()
+	if !impl {
+		return ErrNotImplemented
+	}
+	cl, impl := c.Cloud.Clusters()
+	if !impl {
+		return ErrNotImplemented
+	}
+
+	ips, err := cl.GetMasterPersistentIPs(p.ClusterName)
+	if err != nil {
+		return err
+	}
+
+	// TODO(vaijab): get kube API url
+	cloudConfig, err := c.UserData.RenderMasterCloudConfig(p.ClusterName, p.KubeVersion, "", ips)
+	if err != nil {
+		return err
+	}
+	p.UserData = cloudConfig
+
+	if err := pooler.CreateMasterPool(p); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CreateComputePool create a compute node pool.
+func (c *Controller) CreateComputePool(p model.ComputePool) error {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
 		return ErrNotImplemented
 	}
 
-	p := cloudprovider.NodePool{
-		Kind: "compute",
-		ObjectMeta: cloudprovider.ObjectMeta{
-			Name:        poolName,
-			ClusterName: clusterName,
-		},
-	}
-
-	err := pooler.CreateNodePool(p)
+	err := pooler.CreateComputePool(p)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+// ListNodePools returns a list of node pools
+func (c *Controller) ListNodePools(clusterName string) ([]*model.NodePool, error) {
+	pooler, impl := c.Cloud.NodePooler()
+	if !impl {
+		return []*model.NodePool{}, ErrNotImplemented
+	}
+
+	pools, err := pooler.ListNodePools(clusterName)
+	if err != nil {
+		return []*model.NodePool{}, err
+	}
+	return pools, nil
 }
 
 // DeleteNodePool deletes a node pool
