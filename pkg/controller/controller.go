@@ -71,15 +71,14 @@ func (c *Controller) CreateCluster(cluster model.Cluster) error {
 		return err
 	}
 
-	if err := c.CreateMasterPool(cluster.MasterPool); err != nil {
-		return err
-	}
-
 	if err := lb.CreateLoadBalancer(cluster.MasterPool); err != nil {
 		return err
 	}
 
-	// TODO Create DNS records
+	if err := c.CreateMasterPool(cluster.MasterPool); err != nil {
+		return err
+	}
+
 	// TODO Create compute pool
 	return nil
 }
@@ -99,18 +98,18 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	if err != nil {
 		return err
 	}
+	kubeURL, err := cl.GetKubeAPIURL(p.ClusterName)
+	if err != nil {
+		return err
+	}
 
-	// TODO(vaijab): get kube API url
-	cloudConfig, err := c.UserData.RenderMasterCloudConfig(p.ClusterName, p.KubeVersion, "", ips)
+	cloudConfig, err := c.UserData.RenderMasterCloudConfig(p.ClusterName, p.KubeVersion, kubeURL, ips)
 	if err != nil {
 		return err
 	}
 	p.UserData = cloudConfig
 
-	if err := pooler.CreateMasterPool(p); err != nil {
-		return err
-	}
-	return nil
+	return pooler.CreateMasterPool(p)
 }
 
 // CreateComputePool create a compute node pool.

@@ -47,9 +47,11 @@ type Clusters interface {
 	// DeleteCluster deletes a cluster.
 	// TODO
 	DeleteCluster(string) error
-	// GetMasterPersistentIPs returns a list of master persistent IPs for a given clusterName.
-	GetMasterPersistentIPs(clusterName string) ([]string, error)
-	// GetKubeAPIURL returns a full URL to Kubernetes API.
+	// GetMasterPersistentIPs returns a map of master persistent IP label
+	// values to IPs for a given clusterName.
+	GetMasterPersistentIPs(clusterName string) (map[string]string, error)
+	// GetKubeAPIURL returns a full URL to Kubernetes API. This usually points
+	// at a load balancer.
 	GetKubeAPIURL(clusterName string) (string, error)
 }
 
