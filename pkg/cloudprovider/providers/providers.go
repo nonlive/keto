@@ -1,5 +1,6 @@
 package cloudprovider
 
 import (
-// Register cloud providers.
+	// Register cloud providers.
+	_ "github.com/UKHomeOffice/keto/pkg/cloudprovider/providers/aws"
 )

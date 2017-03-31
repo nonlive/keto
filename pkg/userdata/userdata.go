@@ -19,26 +19,26 @@ func (u UserData) RenderMasterCloudConfig(
 	clusterName string,
 	kubeVersion string,
 	kubeAPIURL string,
-	masterPersistentIPs []string,
+	masterPersistentNodeIDIP map[string]string,
 ) ([]byte, error) {
 
 	const masterTemplate = `#cloud-config
 coreos:
   update:
     reboot-strategy: "off"
-# TODO {{ .MasterPersistentIPs }}
+# TODO {{ .MasterPersistentNodeIDIP }}
 `
 
 	data := struct {
-		ClusterName         string
-		KubeVersion         string
-		KubeAPIURL          string
-		MasterPersistentIPs []string
+		ClusterName              string
+		KubeVersion              string
+		KubeAPIURL               string
+		MasterPersistentNodeIDIP map[string]string
 	}{
-		ClusterName:         clusterName,
-		KubeVersion:         kubeVersion,
-		KubeAPIURL:          kubeAPIURL,
-		MasterPersistentIPs: masterPersistentIPs,
+		ClusterName:              clusterName,
+		KubeVersion:              kubeVersion,
+		KubeAPIURL:               kubeAPIURL,
+		MasterPersistentNodeIDIP: masterPersistentNodeIDIP,
 	}
 
 	t := template.Must(template.New("master-cloud-config").Parse(masterTemplate))
