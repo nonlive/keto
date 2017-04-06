@@ -104,7 +104,24 @@ func (c *Cloud) CreateCluster(cluster model.Cluster) error {
 
 // ListClusters returns a cluster by name or all clusters in the region.
 func (c *Cloud) ListClusters(name string) ([]*model.Cluster, error) {
-	return []*model.Cluster{}, nil
+	clusters := []*model.Cluster{}
+
+	stacks, err := c.getStacksByType(clusterInfraStackType)
+	if err != nil {
+		return clusters, err
+	}
+
+	for _, s := range stacks {
+		n := getClusterNameFromStack(s)
+		if name != "" && n != name {
+			continue
+		}
+		c := &model.Cluster{
+			Name: n,
+		}
+		clusters = append(clusters, c)
+	}
+	return clusters, nil
 }
 
 // DescribeCluster describes a given cluster.
@@ -238,7 +255,7 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 	// TODO(vaijab) keto should create a key pair.
 	sshKeyPairName := os.Getenv("USER")
 
-	if err := c.createMasterStack(p, infraStackName, amiID, sshKeyPairName); err != nil {
+	if err := c.createMasterPoolStack(p, infraStackName, amiID, sshKeyPairName); err != nil {
 		return err
 	}
 	return nil

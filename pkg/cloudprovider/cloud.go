@@ -40,13 +40,13 @@ type Clusters interface {
 	// CreateCluster creates a new cluster.
 	CreateCluster(model.Cluster) error
 	// ListClusters returns a list of clusters in the cloud account.
-	ListClusters(string) ([]*model.Cluster, error)
+	ListClusters(name string) ([]*model.Cluster, error)
 	// DescribeCluster describes a given cluster.
 	// TODO
-	DescribeCluster(string) error
+	DescribeCluster(name string) error
 	// DeleteCluster deletes a cluster.
 	// TODO
-	DeleteCluster(string) error
+	DeleteCluster(name string) error
 	// GetMasterPersistentIPs returns a map of master persistent IP label
 	// values to IPs for a given clusterName.
 	GetMasterPersistentIPs(clusterName string) (map[string]string, error)
