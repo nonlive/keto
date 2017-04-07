@@ -51,6 +51,7 @@ type NodePoolSpec struct {
 	KubeVersion string   `json:"kube_version,omitempty"`
 	MachineType string   `json:"machine_type,omitempty"`
 	OSVersion   string   `json:"os_version,omitempty"`
+	SSHKey      string   `json:"ssh_key,omitempty"`
 	DiskSize    int      `json:"disk_size,omitempty"`
 	MinSize     int      `json:"min_size,omitempty"`
 	Networks    []string `json:"networks,omitempty"`

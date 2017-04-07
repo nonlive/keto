@@ -67,9 +67,13 @@ func validateCreateFlags(c *cobra.Command, args []string) error {
 		}
 	}
 
-	// TODO(vaijab): should not be required. Cloud provivers could have sensible defaults.
+	// TODO(vaijab): should not be required. Cloud providers could have sensible defaults.
 	if !c.Flags().Changed("machine-type") {
 		return fmt.Errorf("machine type must be set")
+	}
+
+	if !c.Flags().Changed("ssh-key") {
+		return fmt.Errorf("ssh key must be set")
 	}
 	return nil
 }
@@ -91,6 +95,10 @@ func runCreate(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	sshKey, err := c.Flags().GetString("ssh-key")
+	if err != nil {
+		return err
+	}
 	machineType, err := c.Flags().GetString("machine-type")
 	if err != nil {
 		return err
@@ -107,7 +115,7 @@ func runCreate(c *cobra.Command, args []string) error {
 	if resType == "cluster" {
 		cluster := model.Cluster{}
 		cluster.Name = resName
-		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, machineType, networks, diskSize)
+		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, sshKey, machineType, networks, diskSize)
 
 		if err := client.ctrl.CreateCluster(cluster); err != nil {
 			return err
@@ -116,7 +124,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	if resType == "masterpool" {
 		pool := model.MasterPool{}
-		pool = makeMasterPool(resName, clusterName, kubeVersion, machineType, networks, diskSize)
+		pool = makeMasterPool(resName, clusterName, kubeVersion, sshKey, machineType, networks, diskSize)
 
 		if err := client.ctrl.CreateMasterPool(pool); err != nil {
 			return err
@@ -137,11 +145,12 @@ func runCreate(c *cobra.Command, args []string) error {
 	return nil
 }
 
-func makeMasterPool(name, clusterName, kubeVersion, machineType string, networks []string, diskSize int) model.MasterPool {
+func makeMasterPool(name, clusterName, kubeVersion, sshKey, machineType string, networks []string, diskSize int) model.MasterPool {
 	p := model.MasterPool{}
 	p.Name = name
 	p.ClusterName = clusterName
 	p.KubeVersion = kubeVersion
+	p.SSHKey = sshKey
 	p.Networks = networks
 	p.DiskSize = diskSize
 	p.MachineType = machineType
@@ -155,6 +164,7 @@ func init() {
 	addClusterFlag(createCmd)
 	addNetworksFlag(createCmd)
 	addOSFlag(createCmd)
+	addSSHKeyFlag(createCmd)
 	addDiskSizeFlag(createCmd)
 	addMachineTypeFlag(createCmd)
 	addSizeFlag(createCmd)

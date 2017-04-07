@@ -111,6 +111,11 @@ func addOSFlag(c *cobra.Command) {
 	c.Flags().String("os", "", "Operating system")
 }
 
+// addSSHKeyFlag adds an ssh-key flag
+func addSSHKeyFlag(c *cobra.Command) {
+	c.Flags().String("ssh-key", "", "Public SSH key or name (dependent on cloud provider)")
+}
+
 // addDiskSizeFlag adds a disk-size flag
 func addDiskSizeFlag(c *cobra.Command) {
 	c.Flags().Int("disk-size", 10, "Node boot disk size in GB")
