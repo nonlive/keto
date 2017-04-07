@@ -85,15 +85,20 @@ func (c *Controller) CreateCluster(cluster model.Cluster) error {
 
 // CreateMasterPool create a compute node pool.
 func (c *Controller) CreateMasterPool(p model.MasterPool) error {
-	pooler, impl := c.Cloud.NodePooler()
-	if !impl {
-		return ErrNotImplemented
-	}
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
 		return ErrNotImplemented
 	}
 
+	// Check if cluster exists first.
+	if exists, err := c.clusterExists(p.ClusterName, cl); !exists {
+		return err
+	}
+
+	pooler, impl := c.Cloud.NodePooler()
+	if !impl {
+		return ErrNotImplemented
+	}
 	ips, err := cl.GetMasterPersistentIPs(p.ClusterName)
 	if err != nil {
 		return err
@@ -110,6 +115,17 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	p.UserData = cloudConfig
 
 	return pooler.CreateMasterPool(p)
+}
+
+func (c *Controller) clusterExists(name string, cl cloudprovider.Clusters) (bool, error) {
+	if c, err := cl.ListClusters(name); len(c) == 0 {
+		errMsg := "cluster not found"
+		if err != nil {
+			errMsg = fmt.Sprintf("%s: %v", errMsg, err)
+		}
+		return false, errors.New(errMsg)
+	}
+	return true, nil
 }
 
 // CreateComputePool create a compute node pool.
