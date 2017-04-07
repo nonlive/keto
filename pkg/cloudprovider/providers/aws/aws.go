@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
@@ -252,10 +251,8 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 	if err != nil {
 		return err
 	}
-	// TODO(vaijab) keto should create a key pair.
-	sshKeyPairName := os.Getenv("USER")
 
-	if err := c.createMasterPoolStack(p, infraStackName, amiID, sshKeyPairName); err != nil {
+	if err := c.createMasterPoolStack(p, infraStackName, amiID, p.SSHKey); err != nil {
 		return err
 	}
 	return nil
