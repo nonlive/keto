@@ -33,6 +33,9 @@ const (
 	blueStack  = "blue"
 	greenStack = "green"
 
+	stackTypeTagKey = "stack-type"
+	poolNameTagKey  = "pool-name"
+
 	clusterInfraStackType = "infra"
 	elbStackType          = "elb"
 	masterPoolStackType   = "masterpool"
@@ -89,7 +92,7 @@ func (c *Cloud) getStacksByType(t string) ([]*cloudformation.Stack, error) {
 		}
 
 		for _, tag := range s.Tags {
-			if *tag.Key == "type" && *tag.Value == t {
+			if *tag.Key == stackTypeTagKey && *tag.Value == t {
 				stacks = append(stacks, s)
 			}
 		}
@@ -142,7 +145,7 @@ func (c *Cloud) createClusterInfraStack(clusterName, vpcID string, subnets []*ec
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeClusterInfraStackName(clusterName)),
-		Tags:         makeStackTags(clusterName, clusterInfraStackType),
+		Tags:         makeStackTags(clusterName, clusterInfraStackType, ""),
 		TemplateBody: aws.String(templateBody),
 	}
 	if err := c.createStack(stack); err != nil {
@@ -166,7 +169,7 @@ func (c *Cloud) createMasterPoolStack(p model.MasterPool, infraStackName, amiID,
 		StackName: aws.String(makeMasterPoolStackName(p.ClusterName, "")),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
-		Tags:         makeStackTags(p.ClusterName, masterPoolStackType),
+		Tags:         makeStackTags(p.ClusterName, masterPoolStackType, p.Name),
 		TemplateBody: aws.String(templateBody),
 	}
 	if err := c.createStack(stack); err != nil {
@@ -190,7 +193,7 @@ func (c *Cloud) createELBStack(p model.MasterPool, vpcID, infraStackName string)
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeELBStackName(p.ClusterName)),
-		Tags:         makeStackTags(p.ClusterName, elbStackType),
+		Tags:         makeStackTags(p.ClusterName, elbStackType, ""),
 		TemplateBody: aws.String(templateBody),
 	}
 	if err := c.createStack(stack); err != nil {
@@ -218,7 +221,7 @@ func (c *Cloud) createNodePoolStack() error {
 	return ErrNotImplemented
 }
 
-func makeStackTags(clusterName, stackType string) []*cloudformation.Tag {
+func makeStackTags(clusterName, stackType, poolName string) []*cloudformation.Tag {
 	tags := []*cloudformation.Tag{
 		{
 			Key:   aws.String(managedByKetoTagKey),
@@ -229,9 +232,18 @@ func makeStackTags(clusterName, stackType string) []*cloudformation.Tag {
 			Value: aws.String(clusterName),
 		},
 		{
-			Key:   aws.String("type"),
+			Key:   aws.String(stackTypeTagKey),
 			Value: aws.String(stackType),
 		},
+	}
+
+	switch {
+	case
+		poolName != "":
+		tags = append(tags, &cloudformation.Tag{
+			Key:   aws.String(poolNameTagKey),
+			Value: aws.String(poolName),
+		})
 	}
 	return tags
 }
