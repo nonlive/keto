@@ -33,6 +33,11 @@ const (
 	blueStack  = "blue"
 	greenStack = "green"
 
+	clusterInfraStackType = "infra"
+	elbStackType          = "elb"
+	masterPoolStackType   = "masterpool"
+	computePoolStackType  = "computepool"
+
 	stackStatusCompleteSuffix   = "COMPLETE"
 	stackStatusInProgressSuffix = "IN_PROGRESS"
 	stackStatusFailedSuffix     = "FAILED"
@@ -44,7 +49,7 @@ func (c *Cloud) getClusterInfraStack(clusterName string) (*cloudformation.Stack,
 }
 
 func (c *Cloud) getNodePoolStack(name, clusterName, part string) (*cloudformation.Stack, error) {
-	return c.getStack(makeNodePoolStackName(clusterName, name, part))
+	return c.getStack(makeComputePoolStackName(clusterName, name, part))
 }
 
 // stackExists returns true if a given stack name exists and is managed by keto.
@@ -53,31 +58,76 @@ func (c *Cloud) stackExists(name string) (bool, error) {
 	if err != nil || s == nil {
 		return false, err
 	}
-	if isStackManaged(s.Tags) {
+	if isStackManaged(s) {
 		return true, nil
 	}
 	return false, nil
 }
 
+// getStack returns Stack struct given stack name and an error if any.
 func (c *Cloud) getStack(name string) (*cloudformation.Stack, error) {
-	params := &cloudformation.DescribeStacksInput{
-		StackName: aws.String(name),
+	stacks, err := c.describeStacks(name)
+	if err != nil || len(stacks) != 1 {
+		return &cloudformation.Stack{}, err
+	}
+	return stacks[0], nil
+}
+
+// getStacksByType returns a list of stacks by type, also checks if they are
+// managed by keto. An error is returned as well if any.
+func (c *Cloud) getStacksByType(t string) ([]*cloudformation.Stack, error) {
+	allStacks, err := c.describeStacks("")
+	stacks := []*cloudformation.Stack{}
+	if err != nil {
+		return stacks, err
+	}
+
+	for _, s := range allStacks {
+		// Skip over stacks that are not managed by keto
+		if !isStackManaged(s) {
+			continue
+		}
+
+		for _, tag := range s.Tags {
+			if *tag.Key == "type" && *tag.Value == t {
+				stacks = append(stacks, s)
+			}
+		}
+	}
+	return stacks, err
+}
+
+func getClusterNameFromStack(s *cloudformation.Stack) string {
+	for _, tag := range s.Tags {
+		if *tag.Key == clusterNameTagKey && *tag.Value != "" {
+			return *tag.Value
+		}
+	}
+	return ""
+}
+
+// describeStacks runs a DescribeStacks on all stacks or a particular stack specified
+// by name. It returns a slice of cloudformation stacks and an error if any.
+func (c *Cloud) describeStacks(name string) ([]*cloudformation.Stack, error) {
+	params := &cloudformation.DescribeStacksInput{}
+	if name != "" {
+		params = params.SetStackName(name)
 	}
 	resp, err := c.cf.DescribeStacks(params)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "ValidationError" && strings.Contains(awsErr.Message(), "does not exist") {
-				return &cloudformation.Stack{}, nil
+				return []*cloudformation.Stack{}, nil
 			}
 		}
-		return &cloudformation.Stack{}, err
+		return []*cloudformation.Stack{}, err
 	}
-	return resp.Stacks[0], nil
+	return resp.Stacks, nil
 }
 
-// isStackManaged returns true if the given slice of tags contains managed by keto tag.
-func isStackManaged(tags []*cloudformation.Tag) bool {
-	for _, tag := range tags {
+// isStackManaged returns true if the given stack tags contains managed by keto tag.
+func isStackManaged(s *cloudformation.Stack) bool {
+	for _, tag := range s.Tags {
 		if *tag.Key == managedByKetoTagKey && *tag.Value == managedByKetoTagValue {
 			return true
 		}
@@ -92,7 +142,7 @@ func (c *Cloud) createClusterInfraStack(clusterName, vpcID string, subnets []*ec
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeClusterInfraStackName(clusterName)),
-		Tags:         makeStackTags(clusterName),
+		Tags:         makeStackTags(clusterName, clusterInfraStackType),
 		TemplateBody: aws.String(templateBody),
 	}
 	if err := c.createStack(stack); err != nil {
@@ -104,19 +154,19 @@ func (c *Cloud) createClusterInfraStack(clusterName, vpcID string, subnets []*ec
 // makeClusterInfraStackName returns cluster infra stack name.
 // There is no blue/green updates for cluster infra stack. Updates are handled in place.
 func makeClusterInfraStackName(clusterName string) string {
-	return fmt.Sprintf("keto-%s-infra", clusterName)
+	return fmt.Sprintf("keto-%s-%s", clusterName, clusterInfraStackType)
 }
 
-func (c *Cloud) createMasterStack(p model.MasterPool, infraStackName, amiID, sshKeyPairName string) error {
+func (c *Cloud) createMasterPoolStack(p model.MasterPool, infraStackName, amiID, sshKeyPairName string) error {
 	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID, sshKeyPairName)
 	if err != nil {
 		return err
 	}
 	stack := &cloudformation.CreateStackInput{
-		StackName: aws.String(makeMasterStackName(p.ClusterName, "")),
+		StackName: aws.String(makeMasterPoolStackName(p.ClusterName, "")),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
-		Tags:         makeStackTags(p.ClusterName),
+		Tags:         makeStackTags(p.ClusterName, masterPoolStackType),
 		TemplateBody: aws.String(templateBody),
 	}
 	if err := c.createStack(stack); err != nil {
@@ -125,12 +175,12 @@ func (c *Cloud) createMasterStack(p model.MasterPool, infraStackName, amiID, ssh
 	return nil
 }
 
-// makeMasterStackName returns master stack name for either blue or green stack.
-func makeMasterStackName(clusterName, part string) string {
+// makeMasterPoolStackName returns master stack name for either blue or green stack.
+func makeMasterPoolStackName(clusterName, part string) string {
 	if part == "" {
 		part = blueStack
 	}
-	return fmt.Sprintf("keto-%s-master-%s", clusterName, part)
+	return fmt.Sprintf("keto-%s-%s-%s", clusterName, masterPoolStackType, part)
 }
 
 func (c *Cloud) createELBStack(p model.MasterPool, vpcID, infraStackName string) error {
@@ -140,7 +190,7 @@ func (c *Cloud) createELBStack(p model.MasterPool, vpcID, infraStackName string)
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeELBStackName(p.ClusterName)),
-		Tags:         makeStackTags(p.ClusterName),
+		Tags:         makeStackTags(p.ClusterName, elbStackType),
 		TemplateBody: aws.String(templateBody),
 	}
 	if err := c.createStack(stack); err != nil {
@@ -152,22 +202,23 @@ func (c *Cloud) createELBStack(p model.MasterPool, vpcID, infraStackName string)
 // makeELBStackName returns ELB stack name.
 // There is no blue/green updates for ELB stack. Updates are handled in place.
 func makeELBStackName(clusterName string) string {
-	return fmt.Sprintf("keto-%s-elb", clusterName)
+	return fmt.Sprintf("keto-%s-%s", clusterName, elbStackType)
 }
 
-// makeNodePoolStackName returns nodepool stack name for either blue or green stack.
-func makeNodePoolStackName(clusterName, name, part string) string {
+// makeComputePoolStackName returns compute pool stack name for either blue or
+// green stack.
+func makeComputePoolStackName(clusterName, name, part string) string {
 	if part == "" {
 		part = blueStack
 	}
-	return fmt.Sprintf("keto-%s-nodepool-%s-%s", clusterName, name, part)
+	return fmt.Sprintf("keto-%s-%s-%s", clusterName, name, part)
 }
 
 func (c *Cloud) createNodePoolStack() error {
-	return nil
+	return ErrNotImplemented
 }
 
-func makeStackTags(clusterName string) []*cloudformation.Tag {
+func makeStackTags(clusterName, stackType string) []*cloudformation.Tag {
 	tags := []*cloudformation.Tag{
 		{
 			Key:   aws.String(managedByKetoTagKey),
@@ -176,6 +227,10 @@ func makeStackTags(clusterName string) []*cloudformation.Tag {
 		{
 			Key:   aws.String(clusterNameTagKey),
 			Value: aws.String(clusterName),
+		},
+		{
+			Key:   aws.String("type"),
+			Value: aws.String(stackType),
 		},
 	}
 	return tags

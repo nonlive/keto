@@ -55,10 +55,21 @@ func PrintNodePool(w *tabwriter.Writer, pools []*model.NodePool, headers bool) e
 		data = append(data, []string{p.Name, p.ClusterName, p.MachineType, p.OSVersion})
 	}
 	fmt.Fprintln(w, formatData(data))
-	if err := w.Flush(); err != nil {
-		return err
+	return w.Flush()
+}
+
+// PrintClusters formats a slice of clusters into [][]string format with
+// optional headers and calls writeToPrinter to write to w.
+func PrintClusters(w *tabwriter.Writer, clusters []*model.Cluster, headers bool) error {
+	data := [][]string{}
+	if headers {
+		data = append(data, clusterColumns)
 	}
-	return nil
+	for _, c := range clusters {
+		data = append(data, []string{c.Name})
+	}
+	fmt.Fprintln(w, formatData(data))
+	return w.Flush()
 }
 
 // formatData formats data of slices of string slices ready for tabwriter.

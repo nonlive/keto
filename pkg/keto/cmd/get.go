@@ -73,13 +73,18 @@ func runGet(c *cobra.Command, args []string) error {
 		resName = args[1]
 	}
 
-	if res == "nodepool" {
+	if res == "cluster" {
+		if err := listClusters(client, resName); err != nil {
+			return err
+		}
+	}
+	if res == "masterpool" {
+		return errors.New("not implemented")
+	}
+	if res == "computepool" {
 		if err := listNodePools(client, clusterName, resName); err != nil {
 			return err
 		}
-	} else {
-		// TODO: implement listing clusters
-		return errors.New("not implemented")
 	}
 	return nil
 }
@@ -89,23 +94,18 @@ func listNodePools(client *client, clusterName, poolName string) error {
 	if err != nil {
 		return err
 	}
-	if err := keto.PrintNodePool(keto.GetPrinter(os.Stdout), pools, true); err != nil {
+	return keto.PrintNodePool(keto.GetPrinter(os.Stdout), pools, true)
+}
+
+func listClusters(client *client, name string) error {
+	clusters, err := client.ctrl.ListClusters(name)
+	if err != nil {
 		return err
 	}
-	return nil
+	return keto.PrintClusters(keto.GetPrinter(os.Stdout), clusters, true)
 }
 
 func init() {
 	RootCmd.AddCommand(getCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// getCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// getCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	addClusterFlag(getCmd)
 }

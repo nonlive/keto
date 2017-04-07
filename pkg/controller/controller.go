@@ -118,12 +118,7 @@ func (c *Controller) CreateComputePool(p model.ComputePool) error {
 	if !impl {
 		return ErrNotImplemented
 	}
-
-	err := pooler.CreateComputePool(p)
-	if err != nil {
-		return err
-	}
-	return nil
+	return pooler.CreateComputePool(p)
 }
 
 // ListNodePools returns a list of node pools
@@ -138,6 +133,15 @@ func (c *Controller) ListNodePools(clusterName string) ([]*model.NodePool, error
 		return []*model.NodePool{}, err
 	}
 	return pools, nil
+}
+
+// ListClusters gets a list of clusters.
+func (c *Controller) ListClusters(name string) ([]*model.Cluster, error) {
+	cl, impl := c.Cloud.Clusters()
+	if !impl {
+		return []*model.Cluster{}, ErrNotImplemented
+	}
+	return cl.ListClusters(name)
 }
 
 // DeleteNodePool deletes a node pool
