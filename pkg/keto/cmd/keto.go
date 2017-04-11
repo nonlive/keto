@@ -143,5 +143,5 @@ func addLabelsFlag(c *cobra.Command) {
 
 // addKubeVersionFlag adds a kubernetes version flag
 func addKubeVersionFlag(c *cobra.Command) {
-	c.Flags().String("kube-version", "v1.6.0-rc.1", "Kubernetes version")
+	c.Flags().String("kube-version", "v1.6.1", "Kubernetes version")
 }
