@@ -39,8 +39,8 @@ type Interface interface {
 type Clusters interface {
 	// CreateCluster creates a new cluster.
 	CreateCluster(model.Cluster) error
-	// ListClusters returns a list of clusters in the cloud account.
-	ListClusters(name string) ([]*model.Cluster, error)
+	// GetClusters returns a list of clusters in the cloud account.
+	GetClusters(name string) ([]*model.Cluster, error)
 	// DescribeCluster describes a given cluster.
 	// TODO
 	DescribeCluster(name string) error
@@ -61,8 +61,10 @@ type NodePooler interface {
 	CreateMasterPool(pool model.MasterPool) error
 	// CreateComputePool creates a new compute node pool.
 	CreateComputePool(pool model.ComputePool) error
-	// ListNodePools returns a list of node pools in the cloud account.
-	ListNodePools(clusterName string) ([]*model.NodePool, error)
+	// GetMasterPools returns a list of master pools in the cloud.
+	GetMasterPools(clusterName, name string) ([]*model.MasterPool, error)
+	// GetComputePools returns a list of compute pools in the cloud.
+	GetComputePools(clusterName, name string) ([]*model.ComputePool, error)
 	// DescribeNodePool describes a given node pool.
 	// TODO
 	DescribeNodePool() error

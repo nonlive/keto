@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -73,32 +72,35 @@ func runGet(c *cobra.Command, args []string) error {
 		resName = args[1]
 	}
 
-	if res == "cluster" {
-		if err := listClusters(client, resName); err != nil {
-			return err
-		}
-	}
-	if res == "masterpool" {
-		return errors.New("not implemented")
-	}
-	if res == "computepool" {
-		if err := listNodePools(client, clusterName, resName); err != nil {
-			return err
-		}
+	switch res {
+	case "cluster":
+		return listClusters(client, resName)
+	case "masterpool":
+		return listMasterPools(client, clusterName, resName)
+	case "computepool":
+		return listComputePools(client, clusterName, resName)
 	}
 	return nil
 }
 
-func listNodePools(client *client, clusterName, poolName string) error {
-	pools, err := client.ctrl.ListNodePools(clusterName)
+func listMasterPools(client *client, clusterName, name string) error {
+	pools, err := client.ctrl.GetMasterPools(clusterName, name)
 	if err != nil {
 		return err
 	}
-	return keto.PrintNodePool(keto.GetPrinter(os.Stdout), pools, true)
+	return keto.PrintMasterPool(keto.GetPrinter(os.Stdout), pools, true)
+}
+
+func listComputePools(client *client, clusterName, name string) error {
+	pools, err := client.ctrl.GetComputePools(clusterName, name)
+	if err != nil {
+		return err
+	}
+	return keto.PrintComputePool(keto.GetPrinter(os.Stdout), pools, true)
 }
 
 func listClusters(client *client, name string) error {
-	clusters, err := client.ctrl.ListClusters(name)
+	clusters, err := client.ctrl.GetClusters(name)
 	if err != nil {
 		return err
 	}

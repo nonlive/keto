@@ -16,14 +16,14 @@ limitations under the License.
 
 package model
 
-// Label is a resource label.
-type Label map[string]string
+// Labels a map of labels
+type Labels map[string]string
 
 // Cluster is a representation of a single cluster.
 type Cluster struct {
-	Name         string
-	KubeAPIURL   string
-	Labels       []Label
+	Name       string
+	KubeAPIURL string
+	Labels
 	MasterPool   MasterPool
 	ComputePools []*ComputePool
 	Status
@@ -60,10 +60,10 @@ type NodePoolSpec struct {
 
 // ResourceMeta is a resource metadata.
 type ResourceMeta struct {
-	Name        string            `json:"name,omitempty"`
-	ID          string            `json:"id,omitempty"`
-	ClusterName string            `json:"cluster_name,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	Name        string `json:"name,omitempty"`
+	ID          string `json:"id,omitempty"`
+	ClusterName string `json:"cluster_name,omitempty"`
+	Labels      `json:"labels,omitempty"`
 }
 
 // Status is the observed status of a resource.

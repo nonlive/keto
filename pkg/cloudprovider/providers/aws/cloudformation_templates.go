@@ -233,7 +233,7 @@ Outputs:
 	return b.String(), nil
 }
 
-func renderMasterStackTemplate(p model.MasterPool, clusterInfraStackName, amiID, sshKeyPairName string) (string, error) {
+func renderMasterStackTemplate(p model.MasterPool, clusterInfraStackName, amiID string) (string, error) {
 	const (
 		masterStackTemplate = `---
 Description: "Kubernetes cluster '{{ .MasterNodePool.ClusterName }}' master nodepool stack"
@@ -308,7 +308,6 @@ Resources:
 {{ $userData := .UserData -}}
 {{ $amiID := .AmiID -}}
 {{ $clusterInfraStackName := .ClusterInfraStackName -}}
-{{ $sshKeyPairName := .SSHKeyPairName -}}
 {{ range $index, $subnet := $masterNodePool.Networks }}
   ASGinAZ{{ $index }}:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -333,7 +332,7 @@ Resources:
       ImageId: "{{ $amiID }}"
       InstanceMonitoring: false
       InstanceType: "{{ $masterNodePool.MachineType }}"
-      KeyName: "{{ $sshKeyPairName }}"
+      KeyName: "{{ $masterNodePool.SSHKey }}"
       SecurityGroups:
         - !ImportValue "{{ $clusterInfraStackName }}-MasterNodePoolSG"
       BlockDeviceMappings:
@@ -350,15 +349,13 @@ Resources:
 	data := struct {
 		MasterNodePool        model.MasterPool
 		ClusterInfraStackName string
-		SSHKeyPairName        string
 		AmiID                 string
 		UserData              string
 	}{
 		MasterNodePool:        p,
 		ClusterInfraStackName: clusterInfraStackName,
-		SSHKeyPairName:        sshKeyPairName,
-		AmiID:                 amiID,
-		UserData:              base64.StdEncoding.EncodeToString(p.UserData),
+		AmiID:    amiID,
+		UserData: base64.StdEncoding.EncodeToString(p.UserData),
 	}
 
 	t := template.Must(template.New("master-stack").Parse(masterStackTemplate))

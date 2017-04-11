@@ -52,7 +52,7 @@ func validateCreateFlags(c *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid resource type.\n" + validTypes)
 	}
 
-	// Check if mandatory flags are set when creating a computepool
+	// Check if mandatory flags are set when creating a computepool or a masterpool.
 	if args[0] == "computepool" || args[0] == "masterpool" {
 		if !c.Flags().Changed("cluster") {
 			return fmt.Errorf("cluster name must be set")
@@ -115,7 +115,7 @@ func runCreate(c *cobra.Command, args []string) error {
 	if resType == "cluster" {
 		cluster := model.Cluster{}
 		cluster.Name = resName
-		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, sshKey, machineType, networks, diskSize)
+		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, sshKey, machineType, diskSize, networks)
 
 		if err := client.ctrl.CreateCluster(cluster); err != nil {
 			return err
@@ -124,7 +124,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	if resType == "masterpool" {
 		pool := model.MasterPool{}
-		pool = makeMasterPool(resName, clusterName, kubeVersion, sshKey, machineType, networks, diskSize)
+		pool = makeMasterPool(resName, clusterName, kubeVersion, sshKey, machineType, diskSize, networks)
 
 		if err := client.ctrl.CreateMasterPool(pool); err != nil {
 			return err
@@ -145,7 +145,7 @@ func runCreate(c *cobra.Command, args []string) error {
 	return nil
 }
 
-func makeMasterPool(name, clusterName, kubeVersion, sshKey, machineType string, networks []string, diskSize int) model.MasterPool {
+func makeMasterPool(name, clusterName, kubeVersion, sshKey, machineType string, diskSize int, networks []string) model.MasterPool {
 	p := model.MasterPool{}
 	p.Name = name
 	p.ClusterName = clusterName

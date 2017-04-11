@@ -34,28 +34,13 @@ const (
 )
 
 var (
-	clusterColumns  = []string{"NAME"}
-	nodePoolColumns = []string{"NAME", "CLUSTER", "MACHINETYPE", "OSVERSION"}
+	clusterColumns  = []string{"NAME", "LABELS"}
+	nodePoolColumns = []string{"NAME", "CLUSTER", "KUBEVERSION", "OSVERSION", "MACHINETYPE", "LABELS"}
 )
 
 // GetPrinter configures a new tabwriter Writer and returns it.
 func GetPrinter(out io.Writer) *tabwriter.Writer {
 	return tabwriter.NewWriter(out, tabwriterMinWidth, tabwriterWidth, tabwriterPadding, tabwriterPadChar, tabwriterFlags)
-}
-
-// PrintNodePool formats a slice of node pools into [][]string format with
-// optional headers and calls writeToPrinter to write to w.
-func PrintNodePool(w *tabwriter.Writer, pools []*model.NodePool, headers bool) error {
-	// TODO
-	data := [][]string{}
-	if headers {
-		data = append(data, nodePoolColumns)
-	}
-	for _, p := range pools {
-		data = append(data, []string{p.Name, p.ClusterName, p.MachineType, p.OSVersion})
-	}
-	fmt.Fprintln(w, formatData(data))
-	return w.Flush()
 }
 
 // PrintClusters formats a slice of clusters into [][]string format with
@@ -66,10 +51,51 @@ func PrintClusters(w *tabwriter.Writer, clusters []*model.Cluster, headers bool)
 		data = append(data, clusterColumns)
 	}
 	for _, c := range clusters {
-		data = append(data, []string{c.Name})
+		labels := labelsToKVs(c.Labels)
+		data = append(data, []string{c.Name, labels})
 	}
 	fmt.Fprintln(w, formatData(data))
 	return w.Flush()
+}
+
+// PrintMasterPool formats a slice of master pools into [][]string format with
+// optional headers and calls writeToPrinter to write to w.
+func PrintMasterPool(w *tabwriter.Writer, pools []*model.MasterPool, headers bool) error {
+	data := [][]string{}
+	if headers {
+		data = append(data, nodePoolColumns)
+	}
+	for _, p := range pools {
+		labels := labelsToKVs(p.Labels)
+		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.OSVersion, p.MachineType, labels})
+	}
+	fmt.Fprintln(w, formatData(data))
+	return w.Flush()
+}
+
+// PrintComputePool formats a slice of compute pools into [][]string format with
+// optional headers and calls writeToPrinter to write to w.
+func PrintComputePool(w *tabwriter.Writer, pools []*model.ComputePool, headers bool) error {
+	data := [][]string{}
+	if headers {
+		data = append(data, nodePoolColumns)
+	}
+	for _, p := range pools {
+		labels := labelsToKVs(p.Labels)
+		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.OSVersion, p.MachineType, labels})
+	}
+	fmt.Fprintln(w, formatData(data))
+	return w.Flush()
+}
+
+// labelsToKVs returns a string of labels in k=v,k=v format as a string.
+func labelsToKVs(m model.Labels) string {
+	s := []string{}
+
+	for k, v := range m {
+		s = append(s, fmt.Sprintf("%s=%s", k, v))
+	}
+	return strings.Join(s, ",")
 }
 
 // formatData formats data of slices of string slices ready for tabwriter.

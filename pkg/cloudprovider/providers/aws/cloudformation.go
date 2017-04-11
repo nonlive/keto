@@ -18,6 +18,7 @@ package aws
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,8 +34,12 @@ const (
 	blueStack  = "blue"
 	greenStack = "green"
 
-	stackTypeTagKey = "stack-type"
-	poolNameTagKey  = "pool-name"
+	stackTypeTagKey   = "stack-type"
+	poolNameTagKey    = "pool-name"
+	osVersionTagKey   = "os-version"
+	kubeVersionTagKey = "kube-version"
+	machineTypeTagKey = "machine-type"
+	diskSizeTagKey    = "disk-size"
 
 	clusterInfraStackType = "infra"
 	elbStackType          = "elb"
@@ -45,6 +50,11 @@ const (
 	stackStatusInProgressSuffix = "IN_PROGRESS"
 	stackStatusFailedSuffix     = "FAILED"
 	stackStatusRollback         = "ROLLBACK"
+)
+
+var (
+	// list of tag key names that should not be used as cluster or pool labels
+	stackTagsNotLabels = []string{stackTypeTagKey, managedByKetoTagKey, kubeVersionTagKey, osVersionTagKey}
 )
 
 func (c *Cloud) getClusterInfraStack(clusterName string) (*cloudformation.Stack, error) {
@@ -67,7 +77,7 @@ func (c *Cloud) stackExists(name string) (bool, error) {
 	return false, nil
 }
 
-// getStack returns Stack struct given stack name and an error if any.
+// getStack returns Stack struct given stack name and an error, if any.
 func (c *Cloud) getStack(name string) (*cloudformation.Stack, error) {
 	stacks, err := c.describeStacks(name)
 	if err != nil || len(stacks) != 1 {
@@ -76,8 +86,29 @@ func (c *Cloud) getStack(name string) (*cloudformation.Stack, error) {
 	return stacks[0], nil
 }
 
+// getStackLabels returns a model.Labels of given a cloudformation stack
+func getStackLabels(s *cloudformation.Stack) model.Labels {
+	reservedTag := func(t *cloudformation.Tag) bool {
+		for _, i := range stackTagsNotLabels {
+			if *t.Key == i {
+				return true
+			}
+		}
+		return false
+	}
+
+	labels := model.Labels{}
+	for _, tag := range s.Tags {
+		if reservedTag(tag) {
+			continue
+		}
+		labels[*tag.Key] = *tag.Value
+	}
+	return labels
+}
+
 // getStacksByType returns a list of stacks by type, also checks if they are
-// managed by keto. An error is returned as well if any.
+// managed by keto. An error is returned as well, if any.
 func (c *Cloud) getStacksByType(t string) ([]*cloudformation.Stack, error) {
 	allStacks, err := c.describeStacks("")
 	stacks := []*cloudformation.Stack{}
@@ -98,15 +129,6 @@ func (c *Cloud) getStacksByType(t string) ([]*cloudformation.Stack, error) {
 		}
 	}
 	return stacks, err
-}
-
-func getClusterNameFromStack(s *cloudformation.Stack) string {
-	for _, tag := range s.Tags {
-		if *tag.Key == clusterNameTagKey && *tag.Value != "" {
-			return *tag.Value
-		}
-	}
-	return ""
 }
 
 // describeStacks runs a DescribeStacks on all stacks or a particular stack specified
@@ -145,13 +167,11 @@ func (c *Cloud) createClusterInfraStack(clusterName, vpcID string, subnets []*ec
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeClusterInfraStackName(clusterName)),
-		Tags:         makeStackTags(clusterName, clusterInfraStackType, ""),
+		Tags:         makeStackTags(clusterName, clusterInfraStackType, "", "", "", "", 0),
 		TemplateBody: aws.String(templateBody),
 	}
-	if err := c.createStack(stack); err != nil {
-		return err
-	}
-	return nil
+
+	return c.createStack(stack)
 }
 
 // makeClusterInfraStackName returns cluster infra stack name.
@@ -161,7 +181,7 @@ func makeClusterInfraStackName(clusterName string) string {
 }
 
 func (c *Cloud) createMasterPoolStack(p model.MasterPool, infraStackName, amiID, sshKeyPairName string) error {
-	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID, sshKeyPairName)
+	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID)
 	if err != nil {
 		return err
 	}
@@ -169,13 +189,12 @@ func (c *Cloud) createMasterPoolStack(p model.MasterPool, infraStackName, amiID,
 		StackName: aws.String(makeMasterPoolStackName(p.ClusterName, "")),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
-		Tags:         makeStackTags(p.ClusterName, masterPoolStackType, p.Name),
+		Tags: makeStackTags(p.ClusterName,
+			masterPoolStackType, p.Name, p.KubeVersion, p.OSVersion, p.MachineType, p.DiskSize),
 		TemplateBody: aws.String(templateBody),
 	}
-	if err := c.createStack(stack); err != nil {
-		return err
-	}
-	return nil
+
+	return c.createStack(stack)
 }
 
 // makeMasterPoolStackName returns master stack name for either blue or green stack.
@@ -193,13 +212,11 @@ func (c *Cloud) createELBStack(p model.MasterPool, vpcID, infraStackName string)
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeELBStackName(p.ClusterName)),
-		Tags:         makeStackTags(p.ClusterName, elbStackType, ""),
+		Tags:         makeStackTags(p.ClusterName, elbStackType, "", "", "", "", 0),
 		TemplateBody: aws.String(templateBody),
 	}
-	if err := c.createStack(stack); err != nil {
-		return err
-	}
-	return nil
+
+	return c.createStack(stack)
 }
 
 // makeELBStackName returns ELB stack name.
@@ -221,7 +238,8 @@ func (c *Cloud) createNodePoolStack() error {
 	return ErrNotImplemented
 }
 
-func makeStackTags(clusterName, stackType, poolName string) []*cloudformation.Tag {
+// makeStackTags returns a list of cloudformation tags that are applied to all stacks.
+func makeStackTags(clusterName, stackType, poolName, kubeVersion, osVersion, machineType string, diskSize int) []*cloudformation.Tag {
 	tags := []*cloudformation.Tag{
 		{
 			Key:   aws.String(managedByKetoTagKey),
@@ -237,12 +255,34 @@ func makeStackTags(clusterName, stackType, poolName string) []*cloudformation.Ta
 		},
 	}
 
-	switch {
-	case
-		poolName != "":
+	if poolName != "" {
 		tags = append(tags, &cloudformation.Tag{
 			Key:   aws.String(poolNameTagKey),
 			Value: aws.String(poolName),
+		})
+	}
+	if kubeVersion != "" {
+		tags = append(tags, &cloudformation.Tag{
+			Key:   aws.String(kubeVersionTagKey),
+			Value: aws.String(kubeVersion),
+		})
+	}
+	if osVersion != "" {
+		tags = append(tags, &cloudformation.Tag{
+			Key:   aws.String(osVersionTagKey),
+			Value: aws.String(osVersion),
+		})
+	}
+	if machineType != "" {
+		tags = append(tags, &cloudformation.Tag{
+			Key:   aws.String(machineTypeTagKey),
+			Value: aws.String(machineType),
+		})
+	}
+	if diskSize > 0 {
+		tags = append(tags, &cloudformation.Tag{
+			Key:   aws.String(diskSizeTagKey),
+			Value: aws.String(strconv.Itoa(diskSize)),
 		})
 	}
 	return tags
