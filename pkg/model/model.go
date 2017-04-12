@@ -21,8 +21,7 @@ type Labels map[string]string
 
 // Cluster is a representation of a single cluster.
 type Cluster struct {
-	Name       string
-	KubeAPIURL string
+	Name string
 	Labels
 	MasterPool   MasterPool
 	ComputePools []*ComputePool
@@ -31,6 +30,7 @@ type Cluster struct {
 
 // MasterPool is a representation of a master control plane node pool.
 type MasterPool struct {
+	KubeAPIURL string
 	NodePool
 }
 

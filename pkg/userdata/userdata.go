@@ -34,7 +34,6 @@ func New() *UserData {
 func (u UserData) RenderMasterCloudConfig(
 	clusterName string,
 	kubeVersion string,
-	kubeAPIURL string,
 	masterPersistentNodeIDIP map[string]string,
 ) ([]byte, error) {
 
@@ -179,7 +178,8 @@ coreos:
         --etcd-client-key /run/kubeapiserver/etcd-client.key \
         --kube-ca-cert=/data/ca/kube/ca.crt \
         --kube-ca-key=/data/ca/kube/ca.key \
-        --kube-server={{ .KubeAPIURL }}:6443 \
+        # TODO: get from the cloud
+        --kube-server=TODO:6443 \
         --etcd-endpoints=https://127.0.0.1:2379
       ExecStart=/usr/bin/bash -c "while true; do sleep 1000; done"
       Restart=always
@@ -483,12 +483,10 @@ write_files:
 	data := struct {
 		ClusterName              string
 		KubeVersion              string
-		KubeAPIURL               string
 		MasterPersistentNodeIDIP map[string]string
 	}{
 		ClusterName:              clusterName,
 		KubeVersion:              kubeVersion,
-		KubeAPIURL:               kubeAPIURL,
 		MasterPersistentNodeIDIP: masterPersistentNodeIDIP,
 	}
 

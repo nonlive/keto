@@ -57,14 +57,6 @@ var (
 	stackTagsNotLabels = []string{stackTypeTagKey, managedByKetoTagKey, kubeVersionTagKey, osVersionTagKey}
 )
 
-func (c *Cloud) getClusterInfraStack(clusterName string) (*cloudformation.Stack, error) {
-	return c.getStack(makeClusterInfraStackName(clusterName))
-}
-
-func (c *Cloud) getNodePoolStack(name, clusterName, part string) (*cloudformation.Stack, error) {
-	return c.getStack(makeComputePoolStackName(clusterName, name, part))
-}
-
 // stackExists returns true if a given stack name exists and is managed by keto.
 func (c *Cloud) stackExists(name string) (bool, error) {
 	s, err := c.getStack(name)
@@ -131,6 +123,19 @@ func (c *Cloud) getStacksByType(t string) ([]*cloudformation.Stack, error) {
 	return stacks, err
 }
 
+// getStackResources returns a list of stack resources given a stack name.
+func (c *Cloud) getStackResources(name string) ([]*cloudformation.StackResource, error) {
+	params := &cloudformation.DescribeStackResourcesInput{
+		StackName: aws.String(name),
+	}
+
+	resp, err := c.cf.DescribeStackResources(params)
+	if err != nil {
+		return []*cloudformation.StackResource{}, err
+	}
+	return resp.StackResources, nil
+}
+
 // describeStacks runs a DescribeStacks on all stacks or a particular stack specified
 // by name. It returns a slice of cloudformation stacks and an error if any.
 func (c *Cloud) describeStacks(name string) ([]*cloudformation.Stack, error) {
@@ -180,8 +185,8 @@ func makeClusterInfraStackName(clusterName string) string {
 	return fmt.Sprintf("keto-%s-%s", clusterName, clusterInfraStackType)
 }
 
-func (c *Cloud) createMasterPoolStack(p model.MasterPool, infraStackName, amiID, sshKeyPairName string) error {
-	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID)
+func (c *Cloud) createMasterPoolStack(p model.MasterPool, infraStackName, amiID, elbName string) error {
+	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID, elbName)
 	if err != nil {
 		return err
 	}

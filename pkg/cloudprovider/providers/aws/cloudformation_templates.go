@@ -233,7 +233,7 @@ Outputs:
 	return b.String(), nil
 }
 
-func renderMasterStackTemplate(p model.MasterPool, clusterInfraStackName, amiID string) (string, error) {
+func renderMasterStackTemplate(p model.MasterPool, clusterInfraStackName, amiID, elbName string) (string, error) {
 	const (
 		masterStackTemplate = `---
 Description: "Kubernetes cluster '{{ .MasterNodePool.ClusterName }}' master nodepool stack"
@@ -307,6 +307,7 @@ Resources:
 {{ $masterNodePool := .MasterNodePool -}}
 {{ $userData := .UserData -}}
 {{ $amiID := .AmiID -}}
+{{ $elbName := .ELBName -}}
 {{ $clusterInfraStackName := .ClusterInfraStackName -}}
 {{ range $index, $subnet := $masterNodePool.Networks }}
   ASGinAZ{{ $index }}:
@@ -315,6 +316,8 @@ Resources:
       LaunchConfigurationName: !Ref LaunchConfiguration{{ $index }}
       VPCZoneIdentifier:
         - "{{ $subnet }}"
+      LoadBalancerNames:
+        - "{{ $elbName }}"
       TerminationPolicies:
         - 'OldestInstance'
         - 'Default'
@@ -350,11 +353,13 @@ Resources:
 		MasterNodePool        model.MasterPool
 		ClusterInfraStackName string
 		AmiID                 string
+		ELBName               string
 		UserData              string
 	}{
 		MasterNodePool:        p,
 		ClusterInfraStackName: clusterInfraStackName,
 		AmiID:    amiID,
+		ELBName:  elbName,
 		UserData: base64.StdEncoding.EncodeToString(p.UserData),
 	}
 

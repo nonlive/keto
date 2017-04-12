@@ -62,16 +62,8 @@ func (c *Controller) CreateCluster(cluster model.Cluster) error {
 	if !impl {
 		return ErrNotImplemented
 	}
-	lb, impl := c.Cloud.LoadBalancer()
-	if !impl {
-		return ErrNotImplemented
-	}
 
 	if err := cl.CreateCluster(cluster); err != nil {
-		return err
-	}
-
-	if err := lb.CreateLoadBalancer(cluster.MasterPool); err != nil {
 		return err
 	}
 
@@ -83,7 +75,7 @@ func (c *Controller) CreateCluster(cluster model.Cluster) error {
 	return nil
 }
 
-// CreateMasterPool create a compute node pool.
+// CreateMasterPool create a master node pool.
 func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
@@ -103,12 +95,8 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	if err != nil {
 		return err
 	}
-	kubeURL, err := cl.GetKubeAPIURL(p.ClusterName)
-	if err != nil {
-		return err
-	}
 
-	cloudConfig, err := c.UserData.RenderMasterCloudConfig(p.ClusterName, p.KubeVersion, kubeURL, ips)
+	cloudConfig, err := c.UserData.RenderMasterCloudConfig(p.ClusterName, p.KubeVersion, ips)
 	if err != nil {
 		return err
 	}

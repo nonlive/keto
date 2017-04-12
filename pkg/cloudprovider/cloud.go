@@ -30,9 +30,6 @@ type Interface interface {
 	// NodePooler returns a node pools interface. Also returns true if the
 	// interface is supported, false otherwise.
 	NodePooler() (NodePooler, bool)
-	// LoadBalancer returns a load balancer interface. Also returns true if the
-	// interface is supported, false otherwise.
-	LoadBalancer() (LoadBalancer, bool)
 }
 
 // Clusters is an abstract interface for clusters.
@@ -50,9 +47,6 @@ type Clusters interface {
 	// GetMasterPersistentIPs returns a map of master persistent IP label
 	// values to IPs for a given clusterName.
 	GetMasterPersistentIPs(clusterName string) (map[string]string, error)
-	// GetKubeAPIURL returns a full URL to Kubernetes API. This usually points
-	// at a load balancer.
-	GetKubeAPIURL(clusterName string) (string, error)
 }
 
 // NodePooler is an abstract interface for node pools.
@@ -65,6 +59,9 @@ type NodePooler interface {
 	GetMasterPools(clusterName, name string) ([]*model.MasterPool, error)
 	// GetComputePools returns a list of compute pools in the cloud.
 	GetComputePools(clusterName, name string) ([]*model.ComputePool, error)
+	// GetKubeAPIURL returns a full URL to Kubernetes API. This usually points
+	// at a load balancer.
+	GetKubeAPIURL(clusterName string) (string, error)
 	// DescribeNodePool describes a given node pool.
 	// TODO
 	DescribeNodePool() error
@@ -74,12 +71,4 @@ type NodePooler interface {
 	// DeleteNodePool deletes a node pool.
 	// TODO
 	DeleteNodePool(clusterName, name string) error
-}
-
-// LoadBalancer is an abstract interface for managing load balancers.
-type LoadBalancer interface {
-	CreateLoadBalancer(p model.MasterPool) error
-	GetLoadBalancer(clusterName string) error
-	UpdateLoadBalancer() error
-	DeleteLoadBalancer(clusterName string) error
 }
