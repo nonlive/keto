@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
@@ -101,8 +102,8 @@ func (c *Cloud) CreateCluster(cluster model.Cluster) error {
 	return nil
 }
 
-// ListClusters returns a cluster by name or all clusters in the region.
-func (c *Cloud) ListClusters(name string) ([]*model.Cluster, error) {
+// GetClusters returns a cluster by name or all clusters in the region.
+func (c *Cloud) GetClusters(name string) ([]*model.Cluster, error) {
 	clusters := []*model.Cluster{}
 
 	stacks, err := c.getStacksByType(clusterInfraStackType)
@@ -110,14 +111,21 @@ func (c *Cloud) ListClusters(name string) ([]*model.Cluster, error) {
 		return clusters, err
 	}
 
+outer:
 	for _, s := range stacks {
-		n := getClusterNameFromStack(s)
-		if name != "" && n != name {
-			continue
+		c := &model.Cluster{}
+		for _, tag := range s.Tags {
+			if *tag.Key == clusterNameTagKey && *tag.Value != "" {
+				// if filtered by cluster name and the stack tag does not
+				// match it, skip over the stack
+				if name != "" && *tag.Value != name {
+					continue outer
+				}
+				c.Name = *tag.Value
+			}
 		}
-		c := &model.Cluster{
-			Name: n,
-		}
+
+		c.Labels = getStackLabels(s)
 		clusters = append(clusters, c)
 	}
 	return clusters, nil
@@ -247,7 +255,8 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 	infraStackName := makeClusterInfraStackName(p.ClusterName)
 	// TODO(vaijab) should be passed in through CLI, but need to figure out
 	// some sort of validation and CoreOS version to AMI name mapping.
-	amiID, err := c.getAMIByName("CoreOS-beta-1325.2.0-hvm")
+	p.OSVersion = "CoreOS-beta-1325.2.0-hvm"
+	amiID, err := c.getAMIByName(p.OSVersion)
 	if err != nil {
 		return err
 	}
@@ -263,10 +272,106 @@ func (c *Cloud) CreateComputePool(nodePool model.ComputePool) error {
 	return ErrNotImplemented
 }
 
-// ListNodePools lists node pools that belong to a given clusterName.
-func (c *Cloud) ListNodePools(clusterName string) ([]*model.NodePool, error) {
-	var pools []*model.NodePool
-	return pools, ErrNotImplemented
+// GetMasterPools returns a list of master pools. Pools can be filtered by
+// their name / cluster.
+// TODO(vaijab): refactor below into a shared function to get nodepools?
+func (c *Cloud) GetMasterPools(clusterName, name string) ([]*model.MasterPool, error) {
+	pools := []*model.MasterPool{}
+
+	stacks, err := c.getStacksByType(masterPoolStackType)
+	if err != nil {
+		return pools, err
+	}
+
+outer:
+	for _, s := range stacks {
+		p := &model.MasterPool{}
+		for _, tag := range s.Tags {
+			if *tag.Key == clusterNameTagKey && *tag.Value != "" {
+				if clusterName != "" && *tag.Value != clusterName {
+					continue outer
+				}
+				p.ClusterName = *tag.Value
+			}
+			if *tag.Key == poolNameTagKey && *tag.Value != "" {
+				if name != "" && *tag.Value != name {
+					continue outer
+				}
+				p.Name = *tag.Value
+			}
+			if *tag.Key == kubeVersionTagKey {
+				p.KubeVersion = *tag.Value
+			}
+			if *tag.Key == osVersionTagKey {
+				p.OSVersion = *tag.Value
+			}
+			if *tag.Key == machineTypeTagKey {
+				p.MachineType = *tag.Value
+			}
+			if *tag.Key == diskSizeTagKey {
+				i, err := strconv.Atoi(*tag.Value)
+				if err != nil {
+					return pools, err
+				}
+				p.DiskSize = i
+			}
+		}
+
+		p.Labels = getStackLabels(s)
+		pools = append(pools, p)
+	}
+	return pools, nil
+}
+
+// GetComputePools returns a list of compute pools. Pools can be filtered by
+// their name / cluster.
+// TODO(vaijab): refactor below into a shared function to get nodepools?
+func (c *Cloud) GetComputePools(clusterName, name string) ([]*model.ComputePool, error) {
+	pools := []*model.ComputePool{}
+
+	stacks, err := c.getStacksByType(masterPoolStackType)
+	if err != nil {
+		return pools, err
+	}
+
+outer:
+	for _, s := range stacks {
+		p := &model.ComputePool{}
+		for _, tag := range s.Tags {
+			if *tag.Key == clusterNameTagKey && *tag.Value != "" {
+				if clusterName != "" && *tag.Value != clusterName {
+					continue outer
+				}
+				p.ClusterName = *tag.Value
+			}
+			if *tag.Key == poolNameTagKey && *tag.Value != "" {
+				if name != "" && *tag.Value != name {
+					continue outer
+				}
+				p.Name = *tag.Value
+			}
+			if *tag.Key == kubeVersionTagKey {
+				p.KubeVersion = *tag.Value
+			}
+			if *tag.Key == osVersionTagKey {
+				p.OSVersion = *tag.Value
+			}
+			if *tag.Key == machineTypeTagKey {
+				p.MachineType = *tag.Value
+			}
+			if *tag.Key == diskSizeTagKey {
+				i, err := strconv.Atoi(*tag.Value)
+				if err != nil {
+					return pools, err
+				}
+				p.DiskSize = i
+			}
+		}
+
+		p.Labels = getStackLabels(s)
+		pools = append(pools, p)
+	}
+	return pools, nil
 }
 
 // DescribeNodePool lists nodes pools.

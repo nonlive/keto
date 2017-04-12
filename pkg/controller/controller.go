@@ -118,7 +118,7 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 }
 
 func (c *Controller) clusterExists(name string, cl cloudprovider.Clusters) (bool, error) {
-	if c, err := cl.ListClusters(name); len(c) == 0 {
+	if c, err := cl.GetClusters(name); len(c) == 0 {
 		errMsg := "cluster not found"
 		if err != nil {
 			errMsg = fmt.Sprintf("%s: %v", errMsg, err)
@@ -137,27 +137,41 @@ func (c *Controller) CreateComputePool(p model.ComputePool) error {
 	return pooler.CreateComputePool(p)
 }
 
-// ListNodePools returns a list of node pools
-func (c *Controller) ListNodePools(clusterName string) ([]*model.NodePool, error) {
+// GetMasterPools returns a list of master pools
+func (c *Controller) GetMasterPools(clusterName, name string) ([]*model.MasterPool, error) {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
-		return []*model.NodePool{}, ErrNotImplemented
+		return []*model.MasterPool{}, ErrNotImplemented
 	}
 
-	pools, err := pooler.ListNodePools(clusterName)
+	pools, err := pooler.GetMasterPools(clusterName, name)
 	if err != nil {
-		return []*model.NodePool{}, err
+		return []*model.MasterPool{}, err
 	}
 	return pools, nil
 }
 
-// ListClusters gets a list of clusters.
-func (c *Controller) ListClusters(name string) ([]*model.Cluster, error) {
+// GetComputePools returns a list of compute node pools
+func (c *Controller) GetComputePools(clusterName, name string) ([]*model.ComputePool, error) {
+	pooler, impl := c.Cloud.NodePooler()
+	if !impl {
+		return []*model.ComputePool{}, ErrNotImplemented
+	}
+
+	pools, err := pooler.GetComputePools(clusterName, name)
+	if err != nil {
+		return []*model.ComputePool{}, err
+	}
+	return pools, nil
+}
+
+// GetClusters gets a list of clusters.
+func (c *Controller) GetClusters(name string) ([]*model.Cluster, error) {
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
 		return []*model.Cluster{}, ErrNotImplemented
 	}
-	return cl.ListClusters(name)
+	return cl.GetClusters(name)
 }
 
 // DeleteNodePool deletes a node pool
