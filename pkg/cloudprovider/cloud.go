@@ -61,6 +61,8 @@ type NodePooler interface {
 	CreateMasterPool(pool model.MasterPool) error
 	// CreateComputePool creates a new compute node pool.
 	CreateComputePool(pool model.ComputePool) error
+	// GetKubeVersion returns kubernetes version string given a cluster name and a pool name.
+	GetKubeVersion(clusterName, name string) (string, error)
 	// GetMasterPools returns a list of master pools in the cloud.
 	GetMasterPools(clusterName, name string) ([]*model.MasterPool, error)
 	// GetComputePools returns a list of compute pools in the cloud.

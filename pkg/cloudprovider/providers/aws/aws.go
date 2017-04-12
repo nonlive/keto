@@ -136,7 +136,7 @@ func (c *Cloud) DescribeCluster(name string) error {
 	return ErrNotImplemented
 }
 
-// GetKubeAPIURL returns a ful Kubernetes API URL.
+// GetKubeAPIURL returns a full Kubernetes API URL.
 func (c Cloud) GetKubeAPIURL(clusterName string) (string, error) {
 	elbName, err := c.getELBName(clusterName)
 	if err != nil {
@@ -158,7 +158,7 @@ func (c Cloud) GetKubeAPIURL(clusterName string) (string, error) {
 	return "https://" + strings.ToLower(*resp.LoadBalancerDescriptions[0].DNSName), nil
 }
 
-// getELBName returns an ELB name from the ELB stack for a given given cluster.
+// getELBName returns an ELB name from the ELB stack for a given cluster.
 func (c Cloud) getELBName(clusterName string) (string, error) {
 	stackName := makeELBStackName(clusterName)
 	s, err := c.getStack(stackName)
@@ -270,6 +270,11 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 // CreateComputePool creates a compute node pool.
 func (c *Cloud) CreateComputePool(nodePool model.ComputePool) error {
 	return ErrNotImplemented
+}
+
+// GetKubeVersion returns kubernetes version string given a cluster name and a pool name.
+func (c *Cloud) GetKubeVersion(clusterName, name string) (string, error) {
+	return "", ErrNotImplemented
 }
 
 // GetMasterPools returns a list of master pools. Pools can be filtered by
