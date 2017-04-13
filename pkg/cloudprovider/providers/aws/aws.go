@@ -136,7 +136,7 @@ func (c *Cloud) DescribeCluster(name string) error {
 	return ErrNotImplemented
 }
 
-// GetKubeAPIURL returns a ful Kubernetes API URL.
+// GetKubeAPIURL returns a full Kubernetes API URL.
 func (c Cloud) GetKubeAPIURL(clusterName string) (string, error) {
 	elbName, err := c.getELBName(clusterName)
 	if err != nil {
@@ -152,6 +152,7 @@ func (c Cloud) GetKubeAPIURL(clusterName string) (string, error) {
 		return "", err
 	}
 	if len(resp.LoadBalancerDescriptions) == 0 {
+		// TODO(vaijab) use awserr to access the underlying error
 		return "", errors.New("no load balancers found")
 	}
 	// For some reason kubernetes does not like mixed-case dns names.
@@ -160,14 +161,13 @@ func (c Cloud) GetKubeAPIURL(clusterName string) (string, error) {
 
 // getELBName returns an ELB name from the ELB stack for a given given cluster.
 func (c Cloud) getELBName(clusterName string) (string, error) {
-	stackName := makeELBStackName(clusterName)
-	s, err := c.getStack(stackName)
+	res, err := c.getStackResources(makeELBStackName(clusterName))
 	if err != nil {
 		return "", err
 	}
-	for _, o := range s.Outputs {
-		if *o.OutputKey == "ELB" {
-			return *o.OutputValue, nil
+	for _, r := range res {
+		if *r.ResourceType == "AWS::ElasticLoadBalancing::LoadBalancer" {
+			return *r.PhysicalResourceId, nil
 		}
 	}
 	return "", nil
@@ -240,9 +240,9 @@ func (c *Cloud) NodePooler() (cloudprovider.NodePooler, bool) {
 
 // CreateMasterPool creates a master node pool.
 func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
-	// At this point a cluster has been created with persistent ENIs, master
-	// nodes should be created in the same subnets as ENIs, so we just
-	// overwrite MasterPool Networks.
+	// At this point a cluster infra has created persistent ENIs, so master
+	// nodes should be created in the same subnets as ENIs, we just
+	// overwrite MasterPool.Networks.
 	enis, err := c.describePersistentENIs(p.ClusterName)
 	if err != nil {
 		return err
@@ -252,7 +252,16 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 		p.Networks = append(p.Networks, *n.SubnetId)
 	}
 
-	infraStackName := makeClusterInfraStackName(p.ClusterName)
+	elbStackExists, err := c.stackExists(makeELBStackName(p.ClusterName))
+	if err != nil {
+		return err
+	}
+	if !elbStackExists {
+		if err := c.createLoadBalancer(p); err != nil {
+			return err
+		}
+	}
+
 	// TODO(vaijab) should be passed in through CLI, but need to figure out
 	// some sort of validation and CoreOS version to AMI name mapping.
 	p.OSVersion = "CoreOS-beta-1325.2.0-hvm"
@@ -261,7 +270,30 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 		return err
 	}
 
-	if err := c.createMasterPoolStack(p, infraStackName, amiID, p.SSHKey); err != nil {
+	elbName, err := c.getELBName(p.ClusterName)
+	if err != nil {
+		return err
+	}
+	infraStackName := makeClusterInfraStackName(p.ClusterName)
+	if err := c.createMasterPoolStack(p, infraStackName, amiID, elbName); err != nil {
+		return err
+	}
+	return nil
+}
+
+// createLoadBalancer ensures a load balancer is created.
+func (c *Cloud) createLoadBalancer(p model.MasterPool) error {
+	subnets, err := c.describeSubnets(p.Networks)
+	if err != nil {
+		return err
+	}
+	vpcID, err := getVpcIDFromSubnetList(subnets)
+	if err != nil {
+		return err
+	}
+
+	infraStackName := makeClusterInfraStackName(p.ClusterName)
+	if err := c.createELBStack(p, vpcID, infraStackName); err != nil {
 		return err
 	}
 	return nil
@@ -386,45 +418,6 @@ func (c *Cloud) UpgradeNodePool() error {
 
 // DeleteNodePool deletes a node pool.
 func (c *Cloud) DeleteNodePool(clusterName, name string) error {
-	return ErrNotImplemented
-}
-
-// LoadBalancer returns an implementation of LoadBalancer interface for
-// AWS Cloud.
-func (c *Cloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	return c, true
-}
-
-// GetLoadBalancer returns a load balancer given cluster name.
-func (c *Cloud) GetLoadBalancer(clusterName string) error {
-	return ErrNotImplemented
-}
-
-// CreateLoadBalancer ensures a load balancer is created.
-func (c *Cloud) CreateLoadBalancer(p model.MasterPool) error {
-	subnets, err := c.describeSubnets(p.Networks)
-	if err != nil {
-		return err
-	}
-	vpcID, err := getVpcIDFromSubnetList(subnets)
-	if err != nil {
-		return err
-	}
-
-	infraStackName := makeClusterInfraStackName(p.ClusterName)
-	if err := c.createELBStack(p, vpcID, infraStackName); err != nil {
-		return err
-	}
-	return nil
-}
-
-// UpdateLoadBalancer updates a load balancer.
-func (c *Cloud) UpdateLoadBalancer() error {
-	return ErrNotImplemented
-}
-
-// DeleteLoadBalancer ensures a load balancer is deleted.
-func (c *Cloud) DeleteLoadBalancer(clusterName string) error {
 	return ErrNotImplemented
 }
 
