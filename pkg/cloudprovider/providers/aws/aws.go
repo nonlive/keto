@@ -28,6 +28,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -55,10 +56,10 @@ var (
 
 // Cloud is an implementation of cloudprovider.Interface.
 type Cloud struct {
-	cf     *cloudformation.CloudFormation
-	ec2    *ec2.EC2
-	elb    *elb.ELB
-	region string
+	cf          *cloudformation.CloudFormation
+	ec2         *ec2.EC2
+	elb         *elb.ELB
+	ec2Metadata *ec2metadata.EC2Metadata
 }
 
 // Compile-time check whether Cloud type value implements
@@ -136,8 +137,8 @@ func (c *Cloud) DescribeCluster(name string) error {
 	return ErrNotImplemented
 }
 
-// GetKubeAPIURL returns a full Kubernetes API URL.
-func (c Cloud) GetKubeAPIURL(clusterName string) (string, error) {
+// getKubeAPIURLFromELB returns a full Kubernetes API URL from an ELB.
+func (c Cloud) getKubeAPIURLFromELB(clusterName string) (string, error) {
 	elbName, err := c.getELBName(clusterName)
 	if err != nil {
 		return "", err
@@ -155,8 +156,12 @@ func (c Cloud) GetKubeAPIURL(clusterName string) (string, error) {
 		// TODO(vaijab) use awserr to access the underlying error
 		return "", errors.New("no load balancers found")
 	}
+	return formatKubeAPIURL(*resp.LoadBalancerDescriptions[0].DNSName), nil
+}
+
+func formatKubeAPIURL(host string) string {
 	// For some reason kubernetes does not like mixed-case dns names.
-	return "https://" + strings.ToLower(*resp.LoadBalancerDescriptions[0].DNSName), nil
+	return "https://" + strings.ToLower(host)
 }
 
 // getELBName returns an ELB name from the ELB stack for a given given cluster.
@@ -274,8 +279,12 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 	if err != nil {
 		return err
 	}
+	kubeAPIURL, err := c.getKubeAPIURLFromELB(p.ClusterName)
+	if err != nil {
+		return err
+	}
 	infraStackName := makeClusterInfraStackName(p.ClusterName)
-	if err := c.createMasterPoolStack(p, infraStackName, amiID, elbName); err != nil {
+	if err := c.createMasterPoolStack(p, infraStackName, amiID, elbName, kubeAPIURL); err != nil {
 		return err
 	}
 	return nil
@@ -478,6 +487,37 @@ func (c *Cloud) getAMIByName(name string) (string, error) {
 	return "", fmt.Errorf("image %q not found", name)
 }
 
+// getResourceTagValue returns a value of the tag key of the resourceID.
+func (c Cloud) getResourceTagValue(resourceID, key string) (string, error) {
+	params := &ec2.DescribeTagsInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("resource-id"),
+				Values: []*string{
+					aws.String(resourceID),
+				},
+			},
+			{
+				Name: aws.String("key"),
+				Values: []*string{
+					aws.String(key),
+				},
+			},
+		},
+	}
+
+	resp, err := c.ec2.DescribeTags(params)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range resp.Tags {
+		if *t.Key == key {
+			return *t.Value, nil
+		}
+	}
+	return "", nil
+}
+
 // init registers AWS cloud with the cloudprovider.
 func init() {
 	// f knows how to initialize the cloud with given config
@@ -495,11 +535,24 @@ func newCloud(config io.Reader) (*Cloud, error) {
 		AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
 	}))
 
-	c := &Cloud{
-		cf:     cloudformation.New(sess),
-		ec2:    ec2.New(sess),
-		elb:    elb.New(sess),
-		region: *sess.Config.Region,
+	// If region has not been provided, let's try to get it from an EC2
+	// metadata service and fail if we cannot get that way.
+	if *sess.Config.Region == "" {
+		s := session.Must(session.NewSession(aws.NewConfig().WithMaxRetries(0)))
+		m := ec2metadata.New(s)
+		r, err := m.Region()
+		if err != nil {
+			return &Cloud{}, errors.New("could not find region configuration")
+		}
+		sess.Config.Region = &r
 	}
+
+	c := &Cloud{
+		cf:          cloudformation.New(sess),
+		ec2:         ec2.New(sess),
+		elb:         elb.New(sess),
+		ec2Metadata: ec2metadata.New(sess),
+	}
+
 	return c, nil
 }

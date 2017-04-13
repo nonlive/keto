@@ -2,3 +2,7 @@ package: github.com/UKHomeOffice/keto
 import:
 - package: github.com/spf13/cobra
 - package: github.com/spf13/viper
+- package: github.com/aws/aws-sdk-go
+  version: v1.8.12
+  subpackages:
+  - aws/ec2metadata
