@@ -30,6 +30,9 @@ type Interface interface {
 	// NodePooler returns a node pools interface. Also returns true if the
 	// interface is supported, false otherwise.
 	NodePooler() (NodePooler, bool)
+	// Node returns a node interface. Also returns true if the interface is
+	// supported, false otherwise.
+	Node() (Node, bool)
 }
 
 // Clusters is an abstract interface for clusters.
@@ -59,9 +62,6 @@ type NodePooler interface {
 	GetMasterPools(clusterName, name string) ([]*model.MasterPool, error)
 	// GetComputePools returns a list of compute pools in the cloud.
 	GetComputePools(clusterName, name string) ([]*model.ComputePool, error)
-	// GetKubeAPIURL returns a full URL to Kubernetes API. This usually points
-	// at a load balancer.
-	GetKubeAPIURL(clusterName string) (string, error)
 	// DescribeNodePool describes a given node pool.
 	// TODO
 	DescribeNodePool() error
@@ -71,4 +71,13 @@ type NodePooler interface {
 	// DeleteNodePool deletes a node pool.
 	// TODO
 	DeleteNodePool(clusterName, name string) error
+}
+
+// Node is an abstract interface for interacting to a cloud provider when
+// running on a cloud instance.
+type Node interface {
+	// GetKubeAPIURL returns a full URL to Kubernetes API.
+	GetKubeAPIURL() (string, error)
+	// GetKubeVersion returns a kubernetes version string.
+	GetKubeVersion() (string, error)
 }
