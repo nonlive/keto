@@ -32,6 +32,7 @@ func New() *UserData {
 
 // RenderMasterCloudConfig renders a master cloud-config.
 func (u UserData) RenderMasterCloudConfig(
+	cloudProviderName string,
 	clusterName string,
 	kubeVersion string,
 	masterPersistentNodeIDIP map[string]string,
@@ -481,10 +482,12 @@ write_files:
 `
 
 	data := struct {
+		CloudProviderName        string
 		ClusterName              string
 		KubeVersion              string
 		MasterPersistentNodeIDIP map[string]string
 	}{
+		CloudProviderName:        cloudProviderName,
 		ClusterName:              clusterName,
 		KubeVersion:              kubeVersion,
 		MasterPersistentNodeIDIP: masterPersistentNodeIDIP,
