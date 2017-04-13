@@ -96,7 +96,7 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 		return err
 	}
 
-	cloudConfig, err := c.UserData.RenderMasterCloudConfig(p.ClusterName, p.KubeVersion, ips)
+	cloudConfig, err := c.UserData.RenderMasterCloudConfig(c.Cloud.ProviderName(), p.ClusterName, p.KubeVersion, ips)
 	if err != nil {
 		return err
 	}
