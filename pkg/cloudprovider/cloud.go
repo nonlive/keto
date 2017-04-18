@@ -50,6 +50,8 @@ type Clusters interface {
 	// GetMasterPersistentIPs returns a map of master persistent IP label
 	// values to IPs for a given clusterName.
 	GetMasterPersistentIPs(clusterName string) (map[string]string, error)
+	// PushAssets pushes assets to cloud provider specific implementation.
+	PushAssets(a model.Assets) error
 }
 
 // NodePooler is an abstract interface for node pools.
@@ -73,11 +75,13 @@ type NodePooler interface {
 	DeleteNodePool(clusterName, name string) error
 }
 
-// Node is an abstract interface for interacting to a cloud provider when
+// Node is an abstract interface for interacting with a cloud provider when
 // running on a cloud instance.
 type Node interface {
 	// GetKubeAPIURL returns a full URL to Kubernetes API.
 	GetKubeAPIURL() (string, error)
 	// GetKubeVersion returns a kubernetes version string.
 	GetKubeVersion() (string, error)
+	// GetAssets gets assets onto a filesystem.
+	GetAssets() error
 }

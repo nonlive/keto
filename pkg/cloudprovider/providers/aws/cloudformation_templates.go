@@ -32,6 +32,9 @@ func renderClusterInfraStackTemplate(clusterName, vpcID string, subnets []*ec2.S
 Description: "Kubernetes cluster '{{ .ClusterName }}' infra stack"
 
 Resources:
+  AssetsBucket:
+    Type: AWS::S3::Bucket
+
   MasterNodePoolSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
@@ -114,6 +117,11 @@ Resources:
   {{ end }}
 
 Outputs:
+  AssetsBucket:
+    Value: !Ref AssetsBucket
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-AssetsBucket"
   MasterNodePoolSG:
     Value: !Ref MasterNodePoolSG
     Export:
@@ -233,7 +241,14 @@ Outputs:
 	return b.String(), nil
 }
 
-func renderMasterStackTemplate(p model.MasterPool, clusterInfraStackName, amiID, elbName string) (string, error) {
+func renderMasterStackTemplate(
+	p model.MasterPool,
+	clusterInfraStackName string,
+	amiID string,
+	elbName string,
+	assetsBucketName string,
+) (string, error) {
+
 	const (
 		masterStackTemplate = `---
 Description: "Kubernetes cluster '{{ .MasterNodePool.ClusterName }}' master nodepool stack"
@@ -267,6 +282,14 @@ Resources:
         - !Ref InstanceRole
       PolicyDocument:
         Statement:
+          - Resource: "arn:aws:s3:::{{ .AssetsBucketName }}"
+            Effect: Allow
+            Action:
+              - "s3:List*"
+          - Resource: "arn:aws:s3:::{{ .AssetsBucketName }}/*"
+            Effect: Allow
+            Action:
+              - "s3:Get*"
           - Resource: "*"
             Effect: Allow
             Action:
@@ -355,12 +378,14 @@ Resources:
 		AmiID                 string
 		ELBName               string
 		UserData              string
+		AssetsBucketName      string
 	}{
 		MasterNodePool:        p,
 		ClusterInfraStackName: clusterInfraStackName,
-		AmiID:    amiID,
-		ELBName:  elbName,
-		UserData: base64.StdEncoding.EncodeToString(p.UserData),
+		AmiID:            amiID,
+		ELBName:          elbName,
+		UserData:         base64.StdEncoding.EncodeToString(p.UserData),
+		AssetsBucketName: assetsBucketName,
 	}
 
 	t := template.Must(template.New("master-stack").Parse(masterStackTemplate))
