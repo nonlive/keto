@@ -57,13 +57,17 @@ func New(cfg Config) *Controller {
 
 // CreateCluster creates a new cluster, which includes master node pool and
 // other supported resources that make up a cluster.
-func (c *Controller) CreateCluster(cluster model.Cluster) error {
+func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) error {
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
 		return ErrNotImplemented
 	}
 
 	if err := cl.CreateCluster(cluster); err != nil {
+		return err
+	}
+
+	if err := cl.PushAssets(cluster.Name, assets); err != nil {
 		return err
 	}
 

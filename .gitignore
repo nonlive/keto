@@ -1,2 +1,6 @@
 /keto
 /vendor
+/etcd_ca.crt
+/etcd_ca.key
+/kube_ca.crt
+/kube_ca.key
