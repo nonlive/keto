@@ -18,6 +18,9 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 	"strings"
 
 	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
@@ -111,13 +114,28 @@ func runCreate(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	assetsDir, err := c.Flags().GetString("assets-dir")
+	if err != nil {
+		return err
+	}
+	if assetsDir == "" {
+		d, err := os.Getwd()
+		if err != nil {
+			return nil
+		}
+		assetsDir = d
+	}
 
 	if resType == "cluster" {
+		a, err := readAssetFiles(assetsDir)
+		if err != nil {
+			return err
+		}
 		cluster := model.Cluster{}
 		cluster.Name = resName
 		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, sshKey, machineType, diskSize, networks)
 
-		if err := client.ctrl.CreateCluster(cluster); err != nil {
+		if err := client.ctrl.CreateCluster(cluster, a); err != nil {
 			return err
 		}
 	}
@@ -143,6 +161,70 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// readAssetFiles reads asset files as byte arrays from the directory d and returns
+// model.Assets.
+func readAssetFiles(d string) (model.Assets, error) {
+	a := model.Assets{}
+	etcdCACertPath := path.Join(d, "etcd_ca.crt")
+	etcdCAKeyPath := path.Join(d, "etcd_ca.key")
+	kubeCACertPath := path.Join(d, "kube_ca.crt")
+	kubeCAKeyPath := path.Join(d, "kube_ca.key")
+
+	// Check if assets exists.
+	if !fileExists(d) {
+		return a, fmt.Errorf("assets directory %q does not exist", d)
+	}
+	if !fileExists(etcdCACertPath) {
+		return a, fmt.Errorf("%q does not exist", etcdCACertPath)
+	}
+	if !fileExists(etcdCAKeyPath) {
+		return a, fmt.Errorf("%q does not exist", etcdCAKeyPath)
+	}
+	if !fileExists(kubeCACertPath) {
+		return a, fmt.Errorf("%q does not exist", kubeCACertPath)
+	}
+	if !fileExists(kubeCAKeyPath) {
+		return a, fmt.Errorf("%q does not exist", kubeCAKeyPath)
+	}
+
+	// Read etcd CA cert.
+	etcdCACert, err := ioutil.ReadFile(etcdCACertPath)
+	if err != nil {
+		return a, err
+	}
+	a.EtcdCACert = etcdCACert
+
+	// Read etcd CA key.
+	etcdCAKey, err := ioutil.ReadFile(etcdCAKeyPath)
+	if err != nil {
+		return a, err
+	}
+	a.EtcdCAKey = etcdCAKey
+
+	// Read kube CA cert.
+	kubeCACert, err := ioutil.ReadFile(kubeCACertPath)
+	if err != nil {
+		return a, err
+	}
+	a.KubeCACert = kubeCACert
+
+	// Read kube CA key.
+	kubeCAKey, err := ioutil.ReadFile(kubeCAKeyPath)
+	if err != nil {
+		return a, err
+	}
+	a.KubeCAKey = kubeCAKey
+
+	return a, nil
+}
+
+func fileExists(f string) bool {
+	if _, err := os.Stat(f); os.IsNotExist(err) && err != nil {
+		return false
+	}
+	return true
 }
 
 func makeMasterPool(name, clusterName, kubeVersion, sshKey, machineType string, diskSize int, networks []string) model.MasterPool {
@@ -171,4 +253,5 @@ func init() {
 	addDNSZoneFlag(createCmd)
 	addLabelsFlag(createCmd)
 	addKubeVersionFlag(createCmd)
+	addAssetsDirFlag(createCmd)
 }

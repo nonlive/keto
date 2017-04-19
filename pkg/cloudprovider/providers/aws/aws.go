@@ -237,6 +237,25 @@ func (c Cloud) describePersistentENIs(clusterName string) ([]*ec2.NetworkInterfa
 	return resp.NetworkInterfaces, nil
 }
 
+// getAssetsBucketName returns assets S3 bucket name from a cluster infra stack.
+func (c Cloud) getAssetsBucketName(clusterName string) (string, error) {
+	res, err := c.getStackResources(makeClusterInfraStackName(clusterName))
+	if err != nil {
+		return "", err
+	}
+	for _, r := range res {
+		if *r.ResourceType == "AWS::S3::Bucket" {
+			return *r.PhysicalResourceId, nil
+		}
+	}
+	return "", nil
+}
+
+// PushAssets pushes assets to an S3 bucket.
+func (c *Cloud) PushAssets(a model.Assets) error {
+	return ErrNotImplemented
+}
+
 // NodePooler returns an implementation of NodePooler interface for
 // AWS Cloud.
 func (c *Cloud) NodePooler() (cloudprovider.NodePooler, bool) {
@@ -284,7 +303,11 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 		return err
 	}
 	infraStackName := makeClusterInfraStackName(p.ClusterName)
-	if err := c.createMasterPoolStack(p, infraStackName, amiID, elbName, kubeAPIURL); err != nil {
+	bucket, err := c.getAssetsBucketName(p.ClusterName)
+	if err != nil {
+		return err
+	}
+	if err := c.createMasterPoolStack(p, infraStackName, amiID, elbName, kubeAPIURL, bucket); err != nil {
 		return err
 	}
 	return nil

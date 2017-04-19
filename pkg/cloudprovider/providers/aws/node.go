@@ -31,3 +31,8 @@ func (c *Cloud) GetKubeVersion() (string, error) {
 func (c Cloud) getInstanceID() (string, error) {
 	return c.ec2Metadata.GetMetadata("instance-id")
 }
+
+// GetAssets gets assets onto a filesystem.
+func (c *Cloud) GetAssets() error {
+	return ErrNotImplemented
+}

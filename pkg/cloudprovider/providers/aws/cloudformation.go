@@ -34,13 +34,14 @@ const (
 	blueStack  = "blue"
 	greenStack = "green"
 
-	stackTypeTagKey   = "stack-type"
-	poolNameTagKey    = "pool-name"
-	osVersionTagKey   = "os-version"
-	kubeVersionTagKey = "kube-version"
-	kubeAPIURLTagKey  = "kube-api-url"
-	machineTypeTagKey = "machine-type"
-	diskSizeTagKey    = "disk-size"
+	stackTypeTagKey        = "stack-type"
+	poolNameTagKey         = "pool-name"
+	osVersionTagKey        = "os-version"
+	kubeVersionTagKey      = "kube-version"
+	kubeAPIURLTagKey       = "kube-api-url"
+	machineTypeTagKey      = "machine-type"
+	diskSizeTagKey         = "disk-size"
+	assetsBucketNameTagKey = "assets-bucket-name"
 
 	clusterInfraStackType = "infra"
 	elbStackType          = "elb"
@@ -54,8 +55,15 @@ const (
 )
 
 var (
-	// list of tag key names that should not be used as cluster or pool labels
-	stackTagsNotLabels = []string{stackTypeTagKey, managedByKetoTagKey, kubeVersionTagKey, kubeAPIURLTagKey, osVersionTagKey}
+	// List of tag key names that should not be used as cluster or pool labels
+	stackTagsNotLabels = []string{
+		stackTypeTagKey,
+		managedByKetoTagKey,
+		kubeVersionTagKey,
+		kubeAPIURLTagKey,
+		osVersionTagKey,
+		assetsBucketNameTagKey,
+	}
 )
 
 // stackExists returns true if a given stack name exists and is managed by keto.
@@ -173,7 +181,7 @@ func (c *Cloud) createClusterInfraStack(clusterName, vpcID string, subnets []*ec
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeClusterInfraStackName(clusterName)),
-		Tags:         makeStackTags(clusterName, clusterInfraStackType, "", "", "", "", "", 0),
+		Tags:         makeStackTags(clusterName, clusterInfraStackType, "", "", "", "", "", "", 0),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -186,8 +194,16 @@ func makeClusterInfraStackName(clusterName string) string {
 	return fmt.Sprintf("keto-%s-%s", clusterName, clusterInfraStackType)
 }
 
-func (c *Cloud) createMasterPoolStack(p model.MasterPool, infraStackName, amiID, elbName, kubeAPIURL string) error {
-	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID, elbName)
+func (c *Cloud) createMasterPoolStack(
+	p model.MasterPool,
+	infraStackName string,
+	amiID string,
+	elbName string,
+	kubeAPIURL string,
+	assetsBucketName string,
+) error {
+
+	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID, elbName, assetsBucketName)
 	if err != nil {
 		return err
 	}
@@ -195,8 +211,8 @@ func (c *Cloud) createMasterPoolStack(p model.MasterPool, infraStackName, amiID,
 		StackName: aws.String(makeMasterPoolStackName(p.ClusterName, "")),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
-		Tags: makeStackTags(p.ClusterName,
-			masterPoolStackType, p.Name, p.KubeVersion, p.OSVersion, p.MachineType, kubeAPIURL, p.DiskSize),
+		Tags: makeStackTags(p.ClusterName, masterPoolStackType, p.Name, p.KubeVersion, p.OSVersion,
+			p.MachineType, kubeAPIURL, assetsBucketName, p.DiskSize),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -218,7 +234,7 @@ func (c *Cloud) createELBStack(p model.MasterPool, vpcID, infraStackName string)
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeELBStackName(p.ClusterName)),
-		Tags:         makeStackTags(p.ClusterName, elbStackType, "", "", "", "", "", 0),
+		Tags:         makeStackTags(p.ClusterName, elbStackType, "", "", "", "", "", "", 0),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -253,6 +269,7 @@ func makeStackTags(
 	osVersion string,
 	machineType string,
 	kubeAPIURL string,
+	assetsBucketName string,
 	diskSize int,
 ) []*cloudformation.Tag {
 	tags := []*cloudformation.Tag{
@@ -298,6 +315,12 @@ func makeStackTags(
 		tags = append(tags, &cloudformation.Tag{
 			Key:   aws.String(kubeAPIURLTagKey),
 			Value: aws.String(kubeAPIURL),
+		})
+	}
+	if assetsBucketName != "" {
+		tags = append(tags, &cloudformation.Tag{
+			Key:   aws.String(assetsBucketNameTagKey),
+			Value: aws.String(assetsBucketName),
 		})
 	}
 	if diskSize > 0 {
