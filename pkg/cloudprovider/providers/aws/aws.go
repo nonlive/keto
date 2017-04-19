@@ -17,11 +17,13 @@ limitations under the License.
 package aws
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
 	"github.com/UKHomeOffice/keto/pkg/model"
@@ -33,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elb"
+	"github.com/aws/aws-sdk-go/service/s3"
 )
 
 const (
@@ -47,6 +50,13 @@ const (
 	managedByKetoTagKey   = "managed-by-keto"
 	managedByKetoTagValue = "true"
 	clusterNameTagKey     = "cluster-name"
+
+	etcdCACertObjectName = "etcd_ca.crt"
+	etcdCAKeyObjectName  = "etcd_ca.key"
+	kubeCACertObjectName = "kube_ca.crt"
+	kubeCAKeyObjectName  = "kube_ca.key"
+
+	assetsExpirationTime = time.Hour
 )
 
 var (
@@ -60,6 +70,7 @@ type Cloud struct {
 	ec2         *ec2.EC2
 	elb         *elb.ELB
 	ec2Metadata *ec2metadata.EC2Metadata
+	s3          *s3.S3
 }
 
 // Compile-time check whether Cloud type value implements
@@ -237,6 +248,61 @@ func (c Cloud) describePersistentENIs(clusterName string) ([]*ec2.NetworkInterfa
 	return resp.NetworkInterfaces, nil
 }
 
+// PushAssets pushes assets to an S3 bucket.
+func (c *Cloud) PushAssets(clusterName string, a model.Assets) error {
+	bucket, err := c.getAssetsBucketName(clusterName)
+	if err != nil {
+		return err
+	}
+
+	// We only need the assets for the initial bootstrap.
+	expires := time.Now().Add(assetsExpirationTime)
+	if err := c.putS3Object(bucket, etcdCACertObjectName, a.EtcdCACert, expires); err != nil {
+		return err
+	}
+	if err := c.putS3Object(bucket, etcdCAKeyObjectName, a.EtcdCAKey, expires); err != nil {
+		return err
+	}
+	if err := c.putS3Object(bucket, kubeCACertObjectName, a.KubeCACert, expires); err != nil {
+		return err
+	}
+	if err := c.putS3Object(bucket, kubeCAKeyObjectName, a.KubeCAKey, expires); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// getAssetsBucketName returns assets S3 bucket name from a cluster infra stack.
+func (c Cloud) getAssetsBucketName(clusterName string) (string, error) {
+	res, err := c.getStackResources(makeClusterInfraStackName(clusterName))
+	if err != nil {
+		return "", err
+	}
+	for _, r := range res {
+		if *r.ResourceType == "AWS::S3::Bucket" {
+			return *r.PhysicalResourceId, nil
+		}
+	}
+	return "", nil
+}
+
+// putS3Object uploads b object as objectName to S3 bucket b. Optionally, an
+// expiry time can be set as well.
+func (c Cloud) putS3Object(bucket string, objectName string, b []byte, expires time.Time) error {
+	params := &s3.PutObjectInput{
+		Body:   bytes.NewReader(b),
+		Bucket: aws.String(bucket),
+		Key:    aws.String(objectName),
+	}
+	if !expires.IsZero() {
+		params = params.SetExpires(expires)
+	}
+
+	_, err := c.s3.PutObject(params)
+	return err
+}
+
 // NodePooler returns an implementation of NodePooler interface for
 // AWS Cloud.
 func (c *Cloud) NodePooler() (cloudprovider.NodePooler, bool) {
@@ -284,7 +350,11 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 		return err
 	}
 	infraStackName := makeClusterInfraStackName(p.ClusterName)
-	if err := c.createMasterPoolStack(p, infraStackName, amiID, elbName, kubeAPIURL); err != nil {
+	bucket, err := c.getAssetsBucketName(p.ClusterName)
+	if err != nil {
+		return err
+	}
+	if err := c.createMasterPoolStack(p, infraStackName, amiID, elbName, kubeAPIURL, bucket); err != nil {
 		return err
 	}
 	return nil
@@ -552,6 +622,7 @@ func newCloud(config io.Reader) (*Cloud, error) {
 		ec2:         ec2.New(sess),
 		elb:         elb.New(sess),
 		ec2Metadata: ec2metadata.New(sess),
+		s3:          s3.New(sess),
 	}
 
 	return c, nil

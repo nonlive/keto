@@ -145,3 +145,8 @@ func addLabelsFlag(c *cobra.Command) {
 func addKubeVersionFlag(c *cobra.Command) {
 	c.Flags().String("kube-version", "v1.6.1", "Kubernetes version")
 }
+
+// addAssetsDirFlag adds an assets dir flag.
+func addAssetsDirFlag(c *cobra.Command) {
+	c.Flags().String("assets-dir", "", "The path to etcd/kube CA certs and keys")
+}

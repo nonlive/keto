@@ -16,8 +16,13 @@ limitations under the License.
 
 package model
 
-// Labels a map of labels
-type Labels map[string]string
+// Assets is a representation of asset files as byte arrays.
+type Assets struct {
+	EtcdCACert []byte
+	EtcdCAKey  []byte
+	KubeCACert []byte
+	KubeCAKey  []byte
+}
 
 // Cluster is a representation of a single cluster.
 type Cluster struct {
@@ -27,6 +32,9 @@ type Cluster struct {
 	ComputePools []*ComputePool
 	Status
 }
+
+// Labels a map of labels
+type Labels map[string]string
 
 // MasterPool is a representation of a master control plane node pool.
 type MasterPool struct {
