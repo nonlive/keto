@@ -110,9 +110,21 @@ coreos:
         Environment=ETCD_SSL_DIR=/run/etcd/certs
         Environment=ETCD_DATA_DIR=/data/etcd
 
+        # Save the CA files from the cloudprovider
+        ExecStartPre=/bin/grep ' /data ' /proc/mounts
+        ExecStartPre=/usr/bin/docker run \
+          --net host \
+          -v /data/ca:/data/ca \
+          -e ETCD_CA_FILE \
+          quay.io/ukhomeofficedigital/kmm \
+          save-assets \
+          --etcd-ca-key /data/ca/etcd/ca.key \
+          --kube-ca-cert=/data/ca/kube/ca.crt \
+          --kube-ca-key=/data/ca/kube/ca.key \
+          --cloud-provider={{ .CloudProviderName }}
+
         # Create the ETCD certs from the ETCD CA
         ExecStartPre=/bin/mkdir -p /run/etcd/certs
-        ExecStartPre=/bin/grep ' /data ' /proc/mounts
         ExecStartPre=/usr/bin/docker run \
           -v /run/etcd/certs:/etc/ssl/certs \
           -v /run/kubeapiserver:/run/kubeapiserver \
