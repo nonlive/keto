@@ -23,6 +23,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
 	"github.com/UKHomeOffice/keto/pkg/model"
 
@@ -31,10 +32,10 @@ import (
 
 // createCmd represents the create command
 var createCmd = &cobra.Command{
-	Use:          "create <" + strings.Join(resourceTypes, "|") + "> <NAME>",
+	Use:          "create <" + strings.Join(constants.ValidResourceTypes, "|") + "> <NAME>",
 	Short:        "Create a resource",
 	Long:         "Create a cluster or add a new computepool to existing cluster",
-	ValidArgs:    resourceTypes,
+	ValidArgs:    constants.ValidResourceTypes,
 	SilenceUsage: true,
 	PreRunE: func(c *cobra.Command, args []string) error {
 		return validateCreateFlags(c, args)
@@ -45,13 +46,13 @@ var createCmd = &cobra.Command{
 }
 
 func validateCreateFlags(c *cobra.Command, args []string) error {
-	validTypes := "Valid types: " + strings.Join(resourceTypes, ", ")
+	validTypes := "Valid types: " + strings.Join(constants.ValidResourceTypes, ", ")
 
 	if len(args) < 2 {
 		return fmt.Errorf("resource type and or resource name not specified.\n" + validTypes)
 	}
 
-	if !cmdutil.StringInSlice(args[0], resourceTypes) {
+	if !cmdutil.StringInSlice(args[0], constants.ValidResourceTypes) {
 		return fmt.Errorf("invalid resource type.\n" + validTypes)
 	}
 
