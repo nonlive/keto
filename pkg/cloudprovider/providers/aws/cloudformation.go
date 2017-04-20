@@ -356,10 +356,7 @@ func (c *Cloud) validateStackTemplate(tpl *string) error {
 		TemplateBody: tpl,
 	}
 	_, err := c.cf.ValidateTemplate(params)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // waitForStackOperationCompletion returns an error if a stack

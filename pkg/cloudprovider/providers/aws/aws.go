@@ -371,10 +371,7 @@ func (c *Cloud) createLoadBalancer(p model.MasterPool) error {
 	}
 
 	infraStackName := makeClusterInfraStackName(p.ClusterName)
-	if err := c.createELBStack(p, vpcID, infraStackName); err != nil {
-		return err
-	}
-	return nil
+	return c.createELBStack(p, vpcID, infraStackName)
 }
 
 // CreateComputePool creates a compute node pool.
@@ -530,10 +527,7 @@ func (c *Cloud) describeSubnets(subnetIDs []string) ([]*ec2.Subnet, error) {
 	if err != nil {
 		return subnets, err
 	}
-	for _, s := range resp.Subnets {
-		subnets = append(subnets, s)
-	}
-	return subnets, nil
+	return append(subnets, resp.Subnets...), nil
 }
 
 // getAMIByName returns AMI ID for a given AMI name.

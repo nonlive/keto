@@ -63,8 +63,9 @@ func validateCreateFlags(c *cobra.Command, args []string) error {
 		}
 	}
 
-	// At this point a cluster already exists, masterpool should be created in
-	// the same networks.
+	// At this point cluster infra already exists, masterpool should be created
+	// in the same networks, don't insist on needing the networks to be
+	// specified when creating a masterpool.
 	if args[0] != "masterpool" {
 		if !c.Flags().Changed("networks") {
 			return fmt.Errorf("networks must be set")
@@ -140,18 +141,14 @@ func runCreate(c *cobra.Command, args []string) error {
 		cluster.Name = resName
 		cluster.MasterPool = makeMasterPool("master", resName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
 
-		if err := cli.ctrl.CreateCluster(cluster, a); err != nil {
-			return err
-		}
+		return cli.ctrl.CreateCluster(cluster, a)
 	}
 
 	if resType == "masterpool" {
 		pool := model.MasterPool{}
 		pool = makeMasterPool(resName, clusterName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
 
-		if err := cli.ctrl.CreateMasterPool(pool); err != nil {
-			return err
-		}
+		return cli.ctrl.CreateMasterPool(pool)
 	}
 
 	if resType == "computepool" {
