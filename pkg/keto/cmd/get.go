@@ -57,7 +57,7 @@ func validateGetFlags(c *cobra.Command, args []string) error {
 }
 
 func runGet(c *cobra.Command, args []string) error {
-	client, err := newClient(c)
+	cli, err := newCLI(c)
 	if err != nil {
 		return err
 	}
@@ -74,33 +74,33 @@ func runGet(c *cobra.Command, args []string) error {
 
 	switch res {
 	case "cluster":
-		return listClusters(client, resName)
+		return listClusters(cli, resName)
 	case "masterpool":
-		return listMasterPools(client, clusterName, resName)
+		return listMasterPools(cli, clusterName, resName)
 	case "computepool":
-		return listComputePools(client, clusterName, resName)
+		return listComputePools(cli, clusterName, resName)
 	}
 	return nil
 }
 
-func listMasterPools(client *client, clusterName, name string) error {
-	pools, err := client.ctrl.GetMasterPools(clusterName, name)
+func listMasterPools(cli *cli, clusterName, name string) error {
+	pools, err := cli.ctrl.GetMasterPools(clusterName, name)
 	if err != nil {
 		return err
 	}
 	return keto.PrintMasterPool(keto.GetPrinter(os.Stdout), pools, true)
 }
 
-func listComputePools(client *client, clusterName, name string) error {
-	pools, err := client.ctrl.GetComputePools(clusterName, name)
+func listComputePools(cli *cli, clusterName, name string) error {
+	pools, err := cli.ctrl.GetComputePools(clusterName, name)
 	if err != nil {
 		return err
 	}
 	return keto.PrintComputePool(keto.GetPrinter(os.Stdout), pools, true)
 }
 
-func listClusters(client *client, name string) error {
-	clusters, err := client.ctrl.GetClusters(name)
+func listClusters(cli *cli, name string) error {
+	clusters, err := cli.ctrl.GetClusters(name)
 	if err != nil {
 		return err
 	}
