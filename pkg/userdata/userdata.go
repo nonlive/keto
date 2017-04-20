@@ -113,6 +113,7 @@ coreos:
         # Save the CA files from the cloudprovider
         ExecStartPre=/bin/grep ' /data ' /proc/mounts
         ExecStartPre=/usr/bin/docker run \
+          --rm \
           --net host \
           -v /data/ca:/data/ca \
           -e ETCD_CA_FILE \
@@ -179,6 +180,7 @@ coreos:
 
       # Generate / check master kubernetes resources...
       ExecStartPre=/usr/bin/docker run \
+        --rm \
         --net host \
         -v /data/ca/kube:/data/ca/kube \
         -v /run/kubeapiserver:/run/kubeapiserver \
