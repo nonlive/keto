@@ -64,7 +64,7 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 		return ErrNotImplemented
 	}
 
-	if err := cl.CreateCluster(cluster); err != nil {
+	if err := cl.CreateClusterInfra(cluster); err != nil {
 		return err
 	}
 

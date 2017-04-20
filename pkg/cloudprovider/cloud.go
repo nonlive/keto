@@ -37,8 +37,8 @@ type Interface interface {
 
 // Clusters is an abstract interface for clusters.
 type Clusters interface {
-	// CreateCluster creates a new cluster.
-	CreateCluster(model.Cluster) error
+	// CreateClusterInfra creates infra components for a new cluster.
+	CreateClusterInfra(model.Cluster) error
 	// GetClusters returns a list of clusters in the cloud account.
 	GetClusters(name string) ([]*model.Cluster, error)
 	// DescribeCluster describes a given cluster.

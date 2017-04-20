@@ -87,10 +87,9 @@ func (c *Cloud) Clusters() (cloudprovider.Clusters, bool) {
 	return c, true
 }
 
-// CreateCluster creates a new cluster, by creating ENIs, volumes and other
+// CreateClusterInfra creates a new cluster, by creating ENIs, volumes and other
 // cluster infra related resources.
-// TODO(vaijab): should rename this to CreateClusterInfra() instead?
-func (c *Cloud) CreateCluster(cluster model.Cluster) error {
+func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
 	infraStackExists, err := c.stackExists(makeClusterInfraStackName(cluster.Name))
 	if err != nil {
 		return err
