@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
 
 	"github.com/spf13/cobra"
@@ -28,11 +29,11 @@ import (
 
 // deleteCmd represents the create command
 var deleteCmd = &cobra.Command{
-	Use:          "delete <" + strings.Join(resourceTypes, "|") + "> <NAME>",
+	Use:          "delete <" + strings.Join(constants.ValidResourceTypes, "|") + "> <NAME>",
 	Short:        "Delete a resource",
 	Long:         "Delete a resource",
 	SuggestFor:   []string{"remove"},
-	ValidArgs:    resourceTypes,
+	ValidArgs:    constants.ValidResourceTypes,
 	SilenceUsage: true,
 	PreRunE: func(c *cobra.Command, args []string) error {
 		return validateDeleteFlags(c, args)
@@ -43,13 +44,13 @@ var deleteCmd = &cobra.Command{
 }
 
 func validateDeleteFlags(c *cobra.Command, args []string) error {
-	validTypes := "Valid types: " + strings.Join(resourceTypes, ", ")
+	validTypes := "Valid types: " + strings.Join(constants.ValidResourceTypes, ", ")
 
 	if len(args) < 1 {
 		return fmt.Errorf("resource type not specified. " + validTypes)
 	}
 
-	if !cmdutil.StringInSlice(args[0], resourceTypes) {
+	if !cmdutil.StringInSlice(args[0], constants.ValidResourceTypes) {
 		return fmt.Errorf("invalid resource type. " + validTypes)
 	}
 	return nil

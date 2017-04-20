@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/keto"
 	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
 
@@ -29,11 +30,11 @@ import (
 
 // getCmd represents the get command
 var getCmd = &cobra.Command{
-	Use:          "get <" + strings.Join(resourceTypes, "|") + "> [NAME]",
+	Use:          "get <" + strings.Join(constants.ValidResourceTypes, "|") + "> [NAME]",
 	Short:        "Get a resource",
 	Long:         "Get a resource",
 	SuggestFor:   []string{"list"},
-	ValidArgs:    resourceTypes,
+	ValidArgs:    constants.ValidResourceTypes,
 	SilenceUsage: true,
 	PreRunE: func(c *cobra.Command, args []string) error {
 		return validateGetFlags(c, args)
@@ -44,13 +45,13 @@ var getCmd = &cobra.Command{
 }
 
 func validateGetFlags(c *cobra.Command, args []string) error {
-	validTypes := "Valid types: " + strings.Join(resourceTypes, ", ")
+	validTypes := "Valid types: " + strings.Join(constants.ValidResourceTypes, ", ")
 
 	if len(args) < 1 {
 		return fmt.Errorf("resource type not specified. " + validTypes)
 	}
 
-	if !cmdutil.StringInSlice(args[0], resourceTypes) {
+	if !cmdutil.StringInSlice(args[0], constants.ValidResourceTypes) {
 		return fmt.Errorf("invalid resource type. " + validTypes)
 	}
 	return nil

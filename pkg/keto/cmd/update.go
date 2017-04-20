@@ -38,11 +38,11 @@ func init() {
 
 	// Add flags that are relevant to update cmd.
 	addClusterFlag(updateCmd)
-	addOSFlag(updateCmd)
+	addCoreOSVersionFlag(updateCmd)
 	addSSHKeyFlag(updateCmd)
 	addDiskSizeFlag(updateCmd)
 	addMachineTypeFlag(updateCmd)
-	addSizeFlag(updateCmd)
+	addPoolSizeFlag(updateCmd)
 	addLabelsFlag(updateCmd)
 	addKubeVersionFlag(updateCmd)
 }

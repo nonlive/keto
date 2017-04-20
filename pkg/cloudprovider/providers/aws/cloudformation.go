@@ -36,7 +36,7 @@ const (
 
 	stackTypeTagKey        = "stack-type"
 	poolNameTagKey         = "pool-name"
-	osVersionTagKey        = "os-version"
+	coreOSVersionTagKey    = "coreos-version"
 	kubeVersionTagKey      = "kube-version"
 	kubeAPIURLTagKey       = "kube-api-url"
 	machineTypeTagKey      = "machine-type"
@@ -61,7 +61,7 @@ var (
 		managedByKetoTagKey,
 		kubeVersionTagKey,
 		kubeAPIURLTagKey,
-		osVersionTagKey,
+		coreOSVersionTagKey,
 		assetsBucketNameTagKey,
 	}
 )
@@ -211,7 +211,7 @@ func (c *Cloud) createMasterPoolStack(
 		StackName: aws.String(makeMasterPoolStackName(p.ClusterName, "")),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
-		Tags: makeStackTags(p.ClusterName, masterPoolStackType, p.Name, p.KubeVersion, p.OSVersion,
+		Tags: makeStackTags(p.ClusterName, masterPoolStackType, p.Name, p.KubeVersion, p.CoreOSVersion,
 			p.MachineType, kubeAPIURL, assetsBucketName, p.DiskSize),
 		TemplateBody: aws.String(templateBody),
 	}
@@ -301,7 +301,7 @@ func makeStackTags(
 	}
 	if osVersion != "" {
 		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(osVersionTagKey),
+			Key:   aws.String(coreOSVersionTagKey),
 			Value: aws.String(osVersion),
 		})
 	}
@@ -356,10 +356,7 @@ func (c *Cloud) validateStackTemplate(tpl *string) error {
 		TemplateBody: tpl,
 	}
 	_, err := c.cf.ValidateTemplate(params)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // waitForStackOperationCompletion returns an error if a stack

@@ -87,10 +87,9 @@ func (c *Cloud) Clusters() (cloudprovider.Clusters, bool) {
 	return c, true
 }
 
-// CreateCluster creates a new cluster, by creating ENIs, volumes and other
+// CreateClusterInfra creates a new cluster, by creating ENIs, volumes and other
 // cluster infra related resources.
-// TODO(vaijab): should rename this to CreateClusterInfra() instead?
-func (c *Cloud) CreateCluster(cluster model.Cluster) error {
+func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
 	infraStackExists, err := c.stackExists(makeClusterInfraStackName(cluster.Name))
 	if err != nil {
 		return err
@@ -335,8 +334,8 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 
 	// TODO(vaijab) should be passed in through CLI, but need to figure out
 	// some sort of validation and CoreOS version to AMI name mapping.
-	p.OSVersion = "CoreOS-beta-1325.2.0-hvm"
-	amiID, err := c.getAMIByName(p.OSVersion)
+	p.CoreOSVersion = "CoreOS-beta-1325.2.0-hvm"
+	amiID, err := c.getAMIByName(p.CoreOSVersion)
 	if err != nil {
 		return err
 	}
@@ -372,10 +371,7 @@ func (c *Cloud) createLoadBalancer(p model.MasterPool) error {
 	}
 
 	infraStackName := makeClusterInfraStackName(p.ClusterName)
-	if err := c.createELBStack(p, vpcID, infraStackName); err != nil {
-		return err
-	}
-	return nil
+	return c.createELBStack(p, vpcID, infraStackName)
 }
 
 // CreateComputePool creates a compute node pool.
@@ -413,8 +409,8 @@ outer:
 			if *tag.Key == kubeVersionTagKey {
 				p.KubeVersion = *tag.Value
 			}
-			if *tag.Key == osVersionTagKey {
-				p.OSVersion = *tag.Value
+			if *tag.Key == coreOSVersionTagKey {
+				p.CoreOSVersion = *tag.Value
 			}
 			if *tag.Key == machineTypeTagKey {
 				p.MachineType = *tag.Value
@@ -464,8 +460,8 @@ outer:
 			if *tag.Key == kubeVersionTagKey {
 				p.KubeVersion = *tag.Value
 			}
-			if *tag.Key == osVersionTagKey {
-				p.OSVersion = *tag.Value
+			if *tag.Key == coreOSVersionTagKey {
+				p.CoreOSVersion = *tag.Value
 			}
 			if *tag.Key == machineTypeTagKey {
 				p.MachineType = *tag.Value
@@ -531,10 +527,7 @@ func (c *Cloud) describeSubnets(subnetIDs []string) ([]*ec2.Subnet, error) {
 	if err != nil {
 		return subnets, err
 	}
-	for _, s := range resp.Subnets {
-		subnets = append(subnets, s)
-	}
-	return subnets, nil
+	return append(subnets, resp.Subnets...), nil
 }
 
 // getAMIByName returns AMI ID for a given AMI name.

@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/model"
 	"github.com/UKHomeOffice/keto/pkg/userdata"
 )
@@ -63,7 +64,7 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 		return ErrNotImplemented
 	}
 
-	if err := cl.CreateCluster(cluster); err != nil {
+	if err := cl.CreateClusterInfra(cluster); err != nil {
 		return err
 	}
 
@@ -89,6 +90,17 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	// Check if cluster exists first.
 	if exists, err := c.clusterExists(p.ClusterName, cl); !exists {
 		return err
+	}
+
+	// Use defaults if values aren't specified.
+	if p.DiskSize == 0 {
+		p.DiskSize = constants.DefaultDiskSizeInGigabytes
+	}
+	if p.KubeVersion == "" {
+		p.KubeVersion = constants.DefaultKubeVersion
+	}
+	if p.CoreOSVersion == "" {
+		p.CoreOSVersion = constants.DefaultCoreOSVersion
 	}
 
 	pooler, impl := c.Cloud.NodePooler()

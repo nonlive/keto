@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/controller"
 	"github.com/UKHomeOffice/keto/pkg/userdata"
 
@@ -29,9 +30,6 @@ import (
 )
 
 var (
-	// resourceTypes contains a list of currently supported resource types.
-	resourceTypes = []string{"cluster", "masterpool", "computepool"}
-
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
 		Use:   "keto",
@@ -106,9 +104,9 @@ func addNetworksFlag(c *cobra.Command) {
 	c.Flags().StringSlice("networks", []string{}, "Cloud specific list of comma separated networks")
 }
 
-// addOSFlag adds an OS flag
-func addOSFlag(c *cobra.Command) {
-	c.Flags().String("os", "", "Operating system")
+// addCoreOSVersionFlag adds an OS flag
+func addCoreOSVersionFlag(c *cobra.Command) {
+	c.Flags().String("coreos-version", "", fmt.Sprintf("Operating system (default %q)", constants.DefaultCoreOSVersion))
 }
 
 // addSSHKeyFlag adds an ssh-key flag
@@ -118,7 +116,7 @@ func addSSHKeyFlag(c *cobra.Command) {
 
 // addDiskSizeFlag adds a disk-size flag
 func addDiskSizeFlag(c *cobra.Command) {
-	c.Flags().Int("disk-size", 10, "Node boot disk size in GB")
+	c.Flags().Int("disk-size", 0, fmt.Sprintf("Node boot disk size in GB (default %d)", constants.DefaultDiskSizeInGigabytes))
 }
 
 // addMachineTypeFlag adds a machine type flag
@@ -126,9 +124,10 @@ func addMachineTypeFlag(c *cobra.Command) {
 	c.Flags().String("machine-type", "", "Machine type")
 }
 
-// addSizeFlag adds a size flag
-func addSizeFlag(c *cobra.Command) {
-	c.Flags().Int("size", 0, "Number of nodes in the compute pool")
+// addPoolSizeFlag adds a size flag
+func addPoolSizeFlag(c *cobra.Command) {
+	c.Flags().Int("pool-size", 0,
+		fmt.Sprintf("Number of nodes in the compute pool (default %d)", constants.DefaultComputePoolSize))
 }
 
 // addDNSZoneFlag adds a DNS zone flag
@@ -143,7 +142,7 @@ func addLabelsFlag(c *cobra.Command) {
 
 // addKubeVersionFlag adds a kubernetes version flag
 func addKubeVersionFlag(c *cobra.Command) {
-	c.Flags().String("kube-version", "v1.6.1", "Kubernetes version")
+	c.Flags().String("kube-version", constants.DefaultKubeVersion, "Kubernetes version")
 }
 
 // addAssetsDirFlag adds an assets dir flag.

@@ -23,6 +23,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
 	"github.com/UKHomeOffice/keto/pkg/model"
 
@@ -31,10 +32,10 @@ import (
 
 // createCmd represents the create command
 var createCmd = &cobra.Command{
-	Use:          "create <" + strings.Join(resourceTypes, "|") + "> <NAME>",
+	Use:          "create <" + strings.Join(constants.ValidResourceTypes, "|") + "> <NAME>",
 	Short:        "Create a resource",
 	Long:         "Create a cluster or add a new computepool to existing cluster",
-	ValidArgs:    resourceTypes,
+	ValidArgs:    constants.ValidResourceTypes,
 	SilenceUsage: true,
 	PreRunE: func(c *cobra.Command, args []string) error {
 		return validateCreateFlags(c, args)
@@ -45,13 +46,13 @@ var createCmd = &cobra.Command{
 }
 
 func validateCreateFlags(c *cobra.Command, args []string) error {
-	validTypes := "Valid types: " + strings.Join(resourceTypes, ", ")
+	validTypes := "Valid types: " + strings.Join(constants.ValidResourceTypes, ", ")
 
 	if len(args) < 2 {
 		return fmt.Errorf("resource type and or resource name not specified.\n" + validTypes)
 	}
 
-	if !cmdutil.StringInSlice(args[0], resourceTypes) {
+	if !cmdutil.StringInSlice(args[0], constants.ValidResourceTypes) {
 		return fmt.Errorf("invalid resource type.\n" + validTypes)
 	}
 
@@ -62,8 +63,9 @@ func validateCreateFlags(c *cobra.Command, args []string) error {
 		}
 	}
 
-	// At this point a cluster already exists, masterpool should be created in
-	// the same networks.
+	// At this point cluster infra already exists, masterpool should be created
+	// in the same networks, don't insist on needing the networks to be
+	// specified when creating a masterpool.
 	if args[0] != "masterpool" {
 		if !c.Flags().Changed("networks") {
 			return fmt.Errorf("networks must be set")
@@ -91,6 +93,10 @@ func runCreate(c *cobra.Command, args []string) error {
 	resName := args[1]
 
 	clusterName, err := c.Flags().GetString("cluster")
+	if err != nil {
+		return err
+	}
+	coreOSVersion, err := c.Flags().GetString("coreos-version")
 	if err != nil {
 		return err
 	}
@@ -133,20 +139,16 @@ func runCreate(c *cobra.Command, args []string) error {
 		}
 		cluster := model.Cluster{}
 		cluster.Name = resName
-		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, sshKey, machineType, diskSize, networks)
+		cluster.MasterPool = makeMasterPool("master", resName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
 
-		if err := cli.ctrl.CreateCluster(cluster, a); err != nil {
-			return err
-		}
+		return cli.ctrl.CreateCluster(cluster, a)
 	}
 
 	if resType == "masterpool" {
 		pool := model.MasterPool{}
-		pool = makeMasterPool(resName, clusterName, kubeVersion, sshKey, machineType, diskSize, networks)
+		pool = makeMasterPool(resName, clusterName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
 
-		if err := cli.ctrl.CreateMasterPool(pool); err != nil {
-			return err
-		}
+		return cli.ctrl.CreateMasterPool(pool)
 	}
 
 	if resType == "computepool" {
@@ -227,10 +229,13 @@ func fileExists(f string) bool {
 	return true
 }
 
-func makeMasterPool(name, clusterName, kubeVersion, sshKey, machineType string, diskSize int, networks []string) model.MasterPool {
+func makeMasterPool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machineType string,
+	diskSize int, networks []string) model.MasterPool {
+
 	p := model.MasterPool{}
 	p.Name = name
 	p.ClusterName = clusterName
+	p.CoreOSVersion = coreOSVersion
 	p.KubeVersion = kubeVersion
 	p.SSHKey = sshKey
 	p.Networks = networks
@@ -245,11 +250,11 @@ func init() {
 	// Add flags that are relevant to create cmd.
 	addClusterFlag(createCmd)
 	addNetworksFlag(createCmd)
-	addOSFlag(createCmd)
+	addCoreOSVersionFlag(createCmd)
 	addSSHKeyFlag(createCmd)
 	addDiskSizeFlag(createCmd)
 	addMachineTypeFlag(createCmd)
-	addSizeFlag(createCmd)
+	addPoolSizeFlag(createCmd)
 	addDNSZoneFlag(createCmd)
 	addLabelsFlag(createCmd)
 	addKubeVersionFlag(createCmd)
