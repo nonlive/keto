@@ -82,7 +82,7 @@ func validateCreateFlags(c *cobra.Command, args []string) error {
 }
 
 func runCreate(c *cobra.Command, args []string) error {
-	client, err := newClient(c)
+	cli, err := newCLI(c)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func runCreate(c *cobra.Command, args []string) error {
 		cluster.Name = resName
 		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, sshKey, machineType, diskSize, networks)
 
-		if err := client.ctrl.CreateCluster(cluster, a); err != nil {
+		if err := cli.ctrl.CreateCluster(cluster, a); err != nil {
 			return err
 		}
 	}
@@ -144,7 +144,7 @@ func runCreate(c *cobra.Command, args []string) error {
 		pool := model.MasterPool{}
 		pool = makeMasterPool(resName, clusterName, kubeVersion, sshKey, machineType, diskSize, networks)
 
-		if err := client.ctrl.CreateMasterPool(pool); err != nil {
+		if err := cli.ctrl.CreateMasterPool(pool); err != nil {
 			return err
 		}
 	}
@@ -154,7 +154,7 @@ func runCreate(c *cobra.Command, args []string) error {
 		// pool.Name = resName
 		// pool.ClusterName = clusterName
 
-		// if err := client.ctrl.CreateComputePool(pool); err != nil {
+		// if err := cli.ctrl.CreateComputePool(pool); err != nil {
 		// 	return err
 		// }
 		return fmt.Errorf("not implemented")

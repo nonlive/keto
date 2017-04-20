@@ -56,7 +56,7 @@ func validateDeleteFlags(c *cobra.Command, args []string) error {
 }
 
 func runDelete(c *cobra.Command, args []string) error {
-	client, err := newClient(c)
+	cli, err := newCLI(c)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func runDelete(c *cobra.Command, args []string) error {
 	}
 
 	if res == "nodepool" {
-		if err := deleteNodePool(client, clusterName, resName); err != nil {
+		if err := deleteNodePool(cli, clusterName, resName); err != nil {
 			return err
 		}
 	} else {
@@ -82,11 +82,8 @@ func runDelete(c *cobra.Command, args []string) error {
 	return nil
 }
 
-func deleteNodePool(client *client, clusterName, name string) error {
-	if err := client.ctrl.DeleteNodePool(clusterName, name); err != nil {
-		return err
-	}
-	return nil
+func deleteNodePool(cli *cli, clusterName, name string) error {
+	return cli.ctrl.DeleteNodePool(clusterName, name)
 }
 
 func init() {

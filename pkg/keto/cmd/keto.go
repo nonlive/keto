@@ -55,25 +55,25 @@ func Execute() {
 	}
 }
 
-// client respresents keto cli client structure.
-type client struct {
+// cli respresents keto cli client.
+type cli struct {
 	ctrl *controller.Controller
 }
 
-// newClient returns a new instance of client. It is expected to be used by
+// newCLI returns a new instance of cli. It is expected to be used by
 // keto cli subcommands.
-func newClient(c *cobra.Command) (*client, error) {
+func newCLI(c *cobra.Command) (*cli, error) {
 	if !c.Flags().Changed("cloud") {
-		return &client{}, fmt.Errorf("cloud provider name is not specified")
+		return &cli{}, fmt.Errorf("cloud provider name is not specified")
 	}
 	cloudName, err := c.Flags().GetString("cloud")
 	if err != nil {
-		return &client{}, err
+		return &cli{}, err
 	}
 
 	cloud, err := cloudprovider.InitCloudProvider(cloudName, nil)
 	if err != nil {
-		return &client{}, err
+		return &cli{}, err
 	}
 	ud := userdata.New()
 	ctrl := controller.New(
@@ -82,7 +82,7 @@ func newClient(c *cobra.Command) (*client, error) {
 			UserData: ud,
 		})
 
-	return &client{ctrl: ctrl}, nil
+	return &cli{ctrl: ctrl}, nil
 }
 
 func init() {
