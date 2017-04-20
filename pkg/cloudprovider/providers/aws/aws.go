@@ -334,8 +334,8 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 
 	// TODO(vaijab) should be passed in through CLI, but need to figure out
 	// some sort of validation and CoreOS version to AMI name mapping.
-	p.OSVersion = "CoreOS-beta-1325.2.0-hvm"
-	amiID, err := c.getAMIByName(p.OSVersion)
+	p.CoreOSVersion = "CoreOS-beta-1325.2.0-hvm"
+	amiID, err := c.getAMIByName(p.CoreOSVersion)
 	if err != nil {
 		return err
 	}
@@ -412,8 +412,8 @@ outer:
 			if *tag.Key == kubeVersionTagKey {
 				p.KubeVersion = *tag.Value
 			}
-			if *tag.Key == osVersionTagKey {
-				p.OSVersion = *tag.Value
+			if *tag.Key == coreOSVersionTagKey {
+				p.CoreOSVersion = *tag.Value
 			}
 			if *tag.Key == machineTypeTagKey {
 				p.MachineType = *tag.Value
@@ -463,8 +463,8 @@ outer:
 			if *tag.Key == kubeVersionTagKey {
 				p.KubeVersion = *tag.Value
 			}
-			if *tag.Key == osVersionTagKey {
-				p.OSVersion = *tag.Value
+			if *tag.Key == coreOSVersionTagKey {
+				p.CoreOSVersion = *tag.Value
 			}
 			if *tag.Key == machineTypeTagKey {
 				p.MachineType = *tag.Value

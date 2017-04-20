@@ -95,6 +95,10 @@ func runCreate(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	coreOSVersion, err := c.Flags().GetString("coreos-version")
+	if err != nil {
+		return err
+	}
 	kubeVersion, err := c.Flags().GetString("kube-version")
 	if err != nil {
 		return err
@@ -134,7 +138,7 @@ func runCreate(c *cobra.Command, args []string) error {
 		}
 		cluster := model.Cluster{}
 		cluster.Name = resName
-		cluster.MasterPool = makeMasterPool("master", resName, kubeVersion, sshKey, machineType, diskSize, networks)
+		cluster.MasterPool = makeMasterPool("master", resName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
 
 		if err := cli.ctrl.CreateCluster(cluster, a); err != nil {
 			return err
@@ -143,7 +147,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	if resType == "masterpool" {
 		pool := model.MasterPool{}
-		pool = makeMasterPool(resName, clusterName, kubeVersion, sshKey, machineType, diskSize, networks)
+		pool = makeMasterPool(resName, clusterName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
 
 		if err := cli.ctrl.CreateMasterPool(pool); err != nil {
 			return err
@@ -228,10 +232,13 @@ func fileExists(f string) bool {
 	return true
 }
 
-func makeMasterPool(name, clusterName, kubeVersion, sshKey, machineType string, diskSize int, networks []string) model.MasterPool {
+func makeMasterPool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machineType string,
+	diskSize int, networks []string) model.MasterPool {
+
 	p := model.MasterPool{}
 	p.Name = name
 	p.ClusterName = clusterName
+	p.CoreOSVersion = coreOSVersion
 	p.KubeVersion = kubeVersion
 	p.SSHKey = sshKey
 	p.Networks = networks
@@ -246,7 +253,7 @@ func init() {
 	// Add flags that are relevant to create cmd.
 	addClusterFlag(createCmd)
 	addNetworksFlag(createCmd)
-	addOSFlag(createCmd)
+	addCoreOSVersionFlag(createCmd)
 	addSSHKeyFlag(createCmd)
 	addDiskSizeFlag(createCmd)
 	addMachineTypeFlag(createCmd)

@@ -67,7 +67,7 @@ func PrintMasterPool(w *tabwriter.Writer, pools []*model.MasterPool, headers boo
 	}
 	for _, p := range pools {
 		labels := labelsToKVs(p.Labels)
-		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.OSVersion, p.MachineType, labels})
+		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.CoreOSVersion, p.MachineType, labels})
 	}
 	fmt.Fprintln(w, formatData(data))
 	return w.Flush()
@@ -82,7 +82,7 @@ func PrintComputePool(w *tabwriter.Writer, pools []*model.ComputePool, headers b
 	}
 	for _, p := range pools {
 		labels := labelsToKVs(p.Labels)
-		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.OSVersion, p.MachineType, labels})
+		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.CoreOSVersion, p.MachineType, labels})
 	}
 	fmt.Fprintln(w, formatData(data))
 	return w.Flush()

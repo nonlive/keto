@@ -56,14 +56,14 @@ type NodePool struct {
 
 // NodePoolSpec is a node pool spec that is used when creating/upgrading a node pool.
 type NodePoolSpec struct {
-	KubeVersion string   `json:"kube_version,omitempty"`
-	MachineType string   `json:"machine_type,omitempty"`
-	OSVersion   string   `json:"os_version,omitempty"`
-	SSHKey      string   `json:"ssh_key,omitempty"`
-	DiskSize    int      `json:"disk_size,omitempty"`
-	MinSize     int      `json:"min_size,omitempty"`
-	Networks    []string `json:"networks,omitempty"`
-	UserData    []byte   `json:"user_data,omitempty"`
+	KubeVersion   string   `json:"kube_version,omitempty"`
+	MachineType   string   `json:"machine_type,omitempty"`
+	CoreOSVersion string   `json:"coreos_version,omitempty"`
+	SSHKey        string   `json:"ssh_key,omitempty"`
+	DiskSize      int      `json:"disk_size,omitempty"`
+	MinSize       int      `json:"min_size,omitempty"`
+	Networks      []string `json:"networks,omitempty"`
+	UserData      []byte   `json:"user_data,omitempty"`
 }
 
 // ResourceMeta is a resource metadata.
