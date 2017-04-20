@@ -254,7 +254,7 @@ func init() {
 	addSSHKeyFlag(createCmd)
 	addDiskSizeFlag(createCmd)
 	addMachineTypeFlag(createCmd)
-	addSizeFlag(createCmd)
+	addPoolSizeFlag(createCmd)
 	addDNSZoneFlag(createCmd)
 	addLabelsFlag(createCmd)
 	addKubeVersionFlag(createCmd)

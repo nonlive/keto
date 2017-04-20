@@ -42,7 +42,7 @@ func init() {
 	addSSHKeyFlag(updateCmd)
 	addDiskSizeFlag(updateCmd)
 	addMachineTypeFlag(updateCmd)
-	addSizeFlag(updateCmd)
+	addPoolSizeFlag(updateCmd)
 	addLabelsFlag(updateCmd)
 	addKubeVersionFlag(updateCmd)
 }
