@@ -139,7 +139,8 @@ func runCreate(c *cobra.Command, args []string) error {
 		}
 		cluster := model.Cluster{}
 		cluster.Name = resName
-		cluster.MasterPool = makeMasterPool("master", resName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
+		cluster.MasterPool = makeMasterPool("master", cluster.Name, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
+		cluster.ComputePools = []model.ComputePool{makeComputePool("compute", cluster.Name, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)}
 
 		return cli.ctrl.CreateCluster(cluster, a)
 	}
@@ -152,14 +153,10 @@ func runCreate(c *cobra.Command, args []string) error {
 	}
 
 	if resType == "computepool" {
-		// pool := model.ComputePool{}
-		// pool.Name = resName
-		// pool.ClusterName = clusterName
+		pool := model.ComputePool{}
+		pool = makeComputePool(resName, clusterName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
 
-		// if err := cli.ctrl.CreateComputePool(pool); err != nil {
-		// 	return err
-		// }
-		return fmt.Errorf("not implemented")
+		return cli.ctrl.CreateComputePool(pool)
 	}
 
 	return nil
@@ -233,6 +230,21 @@ func makeMasterPool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machi
 	diskSize int, networks []string) model.MasterPool {
 
 	p := model.MasterPool{}
+	p.Name = name
+	p.ClusterName = clusterName
+	p.CoreOSVersion = coreOSVersion
+	p.KubeVersion = kubeVersion
+	p.SSHKey = sshKey
+	p.Networks = networks
+	p.DiskSize = diskSize
+	p.MachineType = machineType
+	return p
+}
+
+func makeComputePool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machineType string,
+	diskSize int, networks []string) model.ComputePool {
+
+	p := model.ComputePool{}
 	p.Name = name
 	p.ClusterName = clusterName
 	p.CoreOSVersion = coreOSVersion

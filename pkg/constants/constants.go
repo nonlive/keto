@@ -8,7 +8,9 @@ const (
 	// DefaultDiskSizeInGigabytes specifies a default node disk size in gigabytes.
 	DefaultDiskSizeInGigabytes = 10
 	// DefaultCoreOSVersion specifies a default CoreOS version.
-	DefaultCoreOSVersion = "TODO"
+	// TODO only works for AWS cloud for now. Need to figure out some sort of
+	// validation and CoreOS version to cloud image name mapping.
+	DefaultCoreOSVersion = "CoreOS-beta-1325.2.0-hvm"
 )
 
 var (

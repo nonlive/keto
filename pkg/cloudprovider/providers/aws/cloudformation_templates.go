@@ -70,9 +70,30 @@ Resources:
     Properties:
       GroupDescription: "Kubernetes cluster {{ .ClusterName }} SG for compute nodepools"
       VpcId: {{ .VpcID }}
+      SecurityGroupIngress:
+        - IpProtocol: "6"
+          CidrIp: 0.0.0.0/0
+          FromPort: "22"
+          ToPort: "22"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          FromPort: -1
+          ToPort: -1
       Tags:
         - Key: Name
           Value: "keto-{{ .ClusterName }}-masterpool"
+
+  # Allow traffic between all compute pools.
+  # TODO(vaijab): would be nice to isolate different compute pools from each other.
+  ComputeNodePoolAllTrafficSGIn:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ComputeNodePoolSG
+      IpProtocol: -1
+      SourceSecurityGroupId: !Ref ComputeNodePoolSG
+      FromPort: -1
+      ToPort: -1
 
   # Allow master nodes to talk to all compute pools.
   MasterNodesPoolToComputeNodePoolSG:
@@ -117,6 +138,11 @@ Resources:
   {{ end }}
 
 Outputs:
+  VpcID:
+    Value: {{ .VpcID }}
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-VpcID"
   AssetsBucket:
     Value: !Ref AssetsBucket
     Export:
@@ -389,6 +415,110 @@ Resources:
 	}
 
 	t := template.Must(template.New("master-stack").Parse(masterStackTemplate))
+	var b bytes.Buffer
+	if err := t.Execute(&b, data); err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
+
+func renderComputeStackTemplate(
+	p model.ComputePool,
+	clusterInfraStackName string,
+	amiID string,
+) (string, error) {
+
+	const (
+		computeStackTemplate = `---
+Description: "Kubernetes cluster '{{ .ComputeNodePool.ClusterName }}' compute nodepool stack"
+
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Effect: Allow
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+      Path: /
+
+  RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "kube-cluster-{{ .ComputeNodePool.ClusterName }}-compute-policy"
+      Roles:
+        - !Ref InstanceRole
+      PolicyDocument:
+        Statement:
+          - Resource: "*"
+            Effect: Allow
+            Action:
+              - ec2:DescribeInstances
+              - ec2:DescribeTags
+              - ec2:DescribeVpcs
+
+  ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName: !Ref LaunchConfiguration
+      VPCZoneIdentifier:
+{{- range $index, $subnet := .ComputeNodePool.Networks }}
+        - "{{ $subnet }}"
+{{- end }}
+      TerminationPolicies:
+        - 'OldestInstance'
+        - 'Default'
+      MaxSize: 100
+      MinSize: {{ .ComputeNodePool.Size }}
+      Tags:
+        - Key: Name
+          Value: "keto-{{ .ComputeNodePool.ClusterName }}-compute"
+          PropagateAtLaunch: true
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      AssociatePublicIpAddress: true
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: "{{ .AmiID }}"
+      InstanceMonitoring: false
+      InstanceType: "{{ .ComputeNodePool.MachineType }}"
+      KeyName: "{{ .ComputeNodePool.SSHKey }}"
+      SecurityGroups:
+        - !ImportValue "{{ .ClusterInfraStackName }}-ComputeNodePoolSG"
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeSize: "{{ .ComputeNodePool.DiskSize }}"
+            DeleteOnTermination: true
+            VolumeType: "gp2"
+      UserData: {{ .UserData }}
+`
+	)
+
+	data := struct {
+		ComputeNodePool       model.ComputePool
+		ClusterInfraStackName string
+		AmiID                 string
+		UserData              string
+	}{
+		ComputeNodePool:       p,
+		ClusterInfraStackName: clusterInfraStackName,
+		AmiID:    amiID,
+		UserData: base64.StdEncoding.EncodeToString(p.UserData),
+	}
+
+	t := template.Must(template.New("compute-stack").Parse(computeStackTemplate))
 	var b bytes.Buffer
 	if err := t.Execute(&b, data); err != nil {
 		return "", err
