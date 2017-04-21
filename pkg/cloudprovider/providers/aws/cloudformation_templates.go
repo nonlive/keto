@@ -75,7 +75,7 @@ Resources:
           Value: "keto-{{ .ClusterName }}-masterpool"
 
   # Allow master nodes to talk to all compute pools.
-  MasterNodesPoolToComputeNodePoolSG:
+  MasterNodePoolToComputeNodePoolSG:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       GroupId: !Ref ComputeNodePoolSG
@@ -84,6 +84,7 @@ Resources:
       # TODO(vaijab): not all ports need to be allowed.
       FromPort: "-1"
       ToPort: "-1"
+
 {{ $clusterName := .ClusterName -}}
 {{ range $index, $subnet := .Subnets }}
   ENI{{ $index }}:
