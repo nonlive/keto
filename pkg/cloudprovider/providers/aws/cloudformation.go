@@ -345,10 +345,7 @@ func (c *Cloud) createStack(in *cloudformation.CreateStackInput) error {
 		return err
 	}
 
-	if err := c.waitForStackOperationCompletion(*resp.StackId); err != nil {
-		return err
-	}
-	return nil
+	return c.waitForStackOperationCompletion(*resp.StackId)
 }
 
 func (c *Cloud) validateStackTemplate(tpl *string) error {
@@ -370,7 +367,7 @@ func (c *Cloud) waitForStackOperationCompletion(id string) error {
 			return err
 		// wait for any status that is in progress to complete
 		case strings.HasSuffix(*s.StackStatus, stackStatusInProgressSuffix):
-			break
+			// do nothing
 		// a failed status is always treated as a failure
 		case strings.HasSuffix(*s.StackStatus, stackStatusFailedSuffix):
 			return fmt.Errorf("stack operation failed")
