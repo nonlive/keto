@@ -215,7 +215,7 @@ coreos:
         --volume var-lib-cni,kind=host,source=/var/lib/cni --mount volume=var-lib-cni,target=/var/lib/cni"
       EnvironmentFile=/etc/environment
       ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
-      ExecStartPre=/bin/mkdir -p /etc/kubernetes/cni/net.d
+      ExecStartPre=/bin/mkdir -p /etc/cni/net.d
       ExecStartPre=/bin/mkdir -p /etc/kubernetes/checkpoint-secrets
       ExecStartPre=/bin/mkdir -p /srv/kubernetes/manifests
       ExecStartPre=/bin/mkdir -p /var/lib/cni
@@ -226,7 +226,7 @@ coreos:
         --cloud-provider={{ .CloudProviderName }} \
         --cluster-dns=10.96.0.10 \
         --cluster-domain=cluster.local \
-        --cni-conf-dir=/etc/kubernetes/cni/net.d \
+        --cni-conf-dir=/etc/cni/net.d \
         --kubeconfig=/etc/kubernetes/kubelet.conf \
         --lock-file=/var/run/lock/kubelet.lock \
         --minimum-container-ttl-duration=3m0s \
