@@ -185,6 +185,7 @@ coreos:
         -v /data/ca/kube:/data/ca/kube \
         -v /run/kubeapiserver:/run/kubeapiserver \
         -v /etc/kubernetes/:/etc/kubernetes/ \
+        -e ETCD_INITIAL_CLUSTER \
         -e ETCD_ADVERTISE_CLIENT_URLS \
         -e ETCD_CA_FILE \
         quay.io/ukhomeofficedigital/kmm \
