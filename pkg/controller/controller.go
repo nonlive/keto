@@ -97,6 +97,13 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	if exists, err := c.clusterExists(p.ClusterName, cl); !exists {
 		return err
 	}
+	m, err := c.GetMasterPools(p.ClusterName, "")
+	if err != nil {
+		return err
+	}
+	if len(m) != 0 {
+		return fmt.Errorf("masterpool already exists in cluster %q", p.ClusterName)
+	}
 
 	// Use defaults if values aren't specified.
 	if p.DiskSize == 0 {
