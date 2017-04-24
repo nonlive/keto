@@ -76,7 +76,13 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 		return err
 	}
 
-	// TODO Create compute pool
+	// A user may decide not to create compute pools as part of cluster creation.
+	if len(cluster.ComputePools) == 1 {
+		if err := c.CreateComputePool(cluster.ComputePools[0]); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -134,11 +140,68 @@ func (c *Controller) clusterExists(name string, cl cloudprovider.Clusters) (bool
 
 // CreateComputePool create a compute node pool.
 func (c *Controller) CreateComputePool(p model.ComputePool) error {
+	cl, impl := c.Cloud.Clusters()
+	if !impl {
+		return ErrNotImplemented
+	}
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
 		return ErrNotImplemented
 	}
+
+	// TODO Check if a masterpool for given cluster exists first? Maybe we
+	// don't care if masterpool does not exist yet, as long as the cluster infra exists?
+	if exists, err := c.clusterExists(p.ClusterName, cl); !exists {
+		return err
+	}
+
+	// Check if a compute pool with the same name exists already.
+	computeExists, err := c.computePoolExists(p.ClusterName, p.Name, pooler)
+	if err != nil {
+		return err
+	}
+	if computeExists {
+		return fmt.Errorf("compute pool %q already exists in cluster %q", p.Name, p.ClusterName)
+	}
+
+	// Use defaults if values aren't specified.
+	if p.DiskSize == 0 {
+		p.DiskSize = constants.DefaultDiskSizeInGigabytes
+	}
+	if p.Size == 0 {
+		p.Size = constants.DefaultComputePoolSize
+	}
+
+	// TODO get the missing properties from the masterpool. If not specified,
+	// use versions that the masterpool is using? On the other hand, how can we
+	// ensure that those versions will work with keto cli version? Maybe use
+	// keto defaults instead?
+	if p.KubeVersion == "" {
+		p.KubeVersion = constants.DefaultKubeVersion
+	}
+	if p.CoreOSVersion == "" {
+		p.CoreOSVersion = constants.DefaultCoreOSVersion
+	}
+
+	cloudConfig, err := c.UserData.RenderComputeCloudConfig(c.Cloud.ProviderName(), p.ClusterName)
+	if err != nil {
+		return err
+	}
+	p.UserData = cloudConfig
+
 	return pooler.CreateComputePool(p)
+}
+
+func (c *Controller) computePoolExists(clusterName, name string, pooler cloudprovider.NodePooler) (bool, error) {
+	p, err := pooler.GetComputePools(clusterName, name)
+	if len(p) != 0 && err == nil {
+		return true, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("unable to get compute pools: %v", err)
+	}
+	return false, nil
 }
 
 // GetMasterPools returns a list of master pools
@@ -155,7 +218,7 @@ func (c *Controller) GetMasterPools(clusterName, name string) ([]*model.MasterPo
 	return pools, nil
 }
 
-// GetComputePools returns a list of compute node pools
+// GetComputePools returns a list of compute node pools.
 func (c *Controller) GetComputePools(clusterName, name string) ([]*model.ComputePool, error) {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {

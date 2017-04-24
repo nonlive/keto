@@ -332,9 +332,6 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 		}
 	}
 
-	// TODO(vaijab) should be passed in through CLI, but need to figure out
-	// some sort of validation and CoreOS version to AMI name mapping.
-	p.CoreOSVersion = "CoreOS-beta-1325.2.0-hvm"
 	amiID, err := c.getAMIByName(p.CoreOSVersion)
 	if err != nil {
 		return err
@@ -375,8 +372,39 @@ func (c *Cloud) createLoadBalancer(p model.MasterPool) error {
 }
 
 // CreateComputePool creates a compute node pool.
-func (c *Cloud) CreateComputePool(nodePool model.ComputePool) error {
-	return ErrNotImplemented
+// Creating compute pools in different VPCs from where masterpool sits is
+// not supported. Mainly due to complexities imposed by AWS.
+func (c *Cloud) CreateComputePool(p model.ComputePool) error {
+	vpcID, err := c.getClusterVpcID(p.ClusterName)
+	if err != nil {
+		return err
+	}
+	subnets, err := c.describeSubnets(p.Networks)
+	if err != nil {
+		return err
+	}
+	if len(subnets) > 0 {
+		return errors.New("no subnets found")
+	}
+	if !subnetsBelongToSameVPC(subnets) {
+		return errors.New("networks must be part of the same VPC")
+	}
+	if *subnets[0].VpcId != vpcID {
+		return fmt.Errorf("networks must belong to %q VPC", vpcID)
+	}
+
+	infraStackName := makeClusterInfraStackName(p.ClusterName)
+
+	amiID, err := c.getAMIByName(p.CoreOSVersion)
+	if err != nil {
+		return err
+	}
+	kubeAPIURL, err := c.getKubeAPIURLFromELB(p.ClusterName)
+	if err != nil {
+		return err
+	}
+
+	return c.createComputePoolStack(p, infraStackName, amiID, kubeAPIURL)
 }
 
 // GetMasterPools returns a list of master pools. Pools can be filtered by
@@ -436,7 +464,7 @@ outer:
 func (c *Cloud) GetComputePools(clusterName, name string) ([]*model.ComputePool, error) {
 	pools := []*model.ComputePool{}
 
-	stacks, err := c.getStacksByType(masterPoolStackType)
+	stacks, err := c.getStacksByType(computePoolStackType)
 	if err != nil {
 		return pools, err
 	}
@@ -512,6 +540,21 @@ func subnetsBelongToSameVPC(subnets []*ec2.Subnet) bool {
 		m[*v.VpcId] = true
 	}
 	return len(m) == 1
+}
+
+// getClusterVpcID returns the cluster vpc id from cluster infra stack.
+func (c Cloud) getClusterVpcID(name string) (string, error) {
+	s, err := c.getStack(makeClusterInfraStackName(name))
+	if err != nil {
+		return "", err
+	}
+
+	for _, o := range s.Outputs {
+		if *o.OutputKey == "VpcID" {
+			return *o.OutputValue, nil
+		}
+	}
+	return "", nil
 }
 
 // describeSubnets returns a slice of subnet structs as well as an error value.

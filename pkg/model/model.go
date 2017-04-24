@@ -29,7 +29,7 @@ type Cluster struct {
 	Name string
 	Labels
 	MasterPool   MasterPool
-	ComputePools []*ComputePool
+	ComputePools []ComputePool
 	Status
 }
 
@@ -54,14 +54,14 @@ type NodePool struct {
 	Status
 }
 
-// NodePoolSpec is a node pool spec that is used when creating/upgrading a node pool.
+// NodePoolSpec represent a node pool.
 type NodePoolSpec struct {
 	KubeVersion   string   `json:"kube_version,omitempty"`
 	MachineType   string   `json:"machine_type,omitempty"`
 	CoreOSVersion string   `json:"coreos_version,omitempty"`
 	SSHKey        string   `json:"ssh_key,omitempty"`
 	DiskSize      int      `json:"disk_size,omitempty"`
-	MinSize       int      `json:"min_size,omitempty"`
+	Size          int      `json:"size,omitempty"`
 	Networks      []string `json:"networks,omitempty"`
 	UserData      []byte   `json:"user_data,omitempty"`
 }

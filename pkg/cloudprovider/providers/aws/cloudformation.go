@@ -247,6 +247,23 @@ func makeELBStackName(clusterName string) string {
 	return fmt.Sprintf("keto-%s-%s", clusterName, elbStackType)
 }
 
+func (c *Cloud) createComputePoolStack(p model.ComputePool, infraStackName string, amiID string, kubeAPIURL string) error {
+	templateBody, err := renderComputeStackTemplate(p, infraStackName, amiID)
+	if err != nil {
+		return err
+	}
+	stack := &cloudformation.CreateStackInput{
+		StackName: aws.String(makeComputePoolStackName(p.ClusterName, p.Name, "")),
+		Capabilities: aws.StringSlice([]string{
+			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
+		Tags: makeStackTags(p.ClusterName, computePoolStackType, p.Name, p.KubeVersion, p.CoreOSVersion,
+			p.MachineType, kubeAPIURL, "", p.DiskSize),
+		TemplateBody: aws.String(templateBody),
+	}
+
+	return c.createStack(stack)
+}
+
 // makeComputePoolStackName returns compute pool stack name for either blue or
 // green stack.
 func makeComputePoolStackName(clusterName, name, part string) string {
@@ -254,10 +271,6 @@ func makeComputePoolStackName(clusterName, name, part string) string {
 		part = blueStack
 	}
 	return fmt.Sprintf("keto-%s-%s-%s", clusterName, name, part)
-}
-
-func (c *Cloud) createNodePoolStack() error {
-	return ErrNotImplemented
 }
 
 // makeStackTags returns a list of cloudformation tags that are applied to all stacks.
