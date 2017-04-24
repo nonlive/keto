@@ -383,7 +383,7 @@ func (c *Cloud) CreateComputePool(p model.ComputePool) error {
 	if err != nil {
 		return err
 	}
-	if len(subnets) > 0 {
+	if len(subnets) == 0 {
 		return errors.New("no subnets found")
 	}
 	if !subnetsBelongToSameVPC(subnets) {
