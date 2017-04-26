@@ -213,6 +213,7 @@ coreos:
       Environment="RKT_OPTS=\
         --uuid-file-save=/var/run/kubelet-pod.uuid \
         --volume etc-resolv,kind=host,source=/etc/resolv.conf --mount volume=etc-resolv,target=/etc/resolv.conf \
+        --volume var-log,kind=host,source=/var/log --mount volume=var-log,target=/var/log \
         --volume var-lib-cni,kind=host,source=/var/lib/cni --mount volume=var-lib-cni,target=/var/lib/cni"
       EnvironmentFile=/etc/environment
       ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
@@ -230,20 +231,14 @@ coreos:
         --cni-conf-dir=/etc/cni/net.d \
         --kubeconfig=/etc/kubernetes/kubelet.conf \
         --lock-file=/var/run/lock/kubelet.lock \
-        --minimum-container-ttl-duration=3m0s \
         --network-plugin=cni \
         --hostname-override="${COREOS_PRIVATE_IPV4}" \
-        --node-labels=master=true \
         --pod-manifest-path=/etc/kubernetes/manifests \
-        --api-servers=https://${COREOS_PRIVATE_IPV4}:6443 \
         --require-kubeconfig=true \
         --image-gc-high-threshold=60 \
         --image-gc-low-threshold=40 \
-        --logtostderr=true \
-        --maximum-dead-containers-per-container=1 \
-        --maximum-dead-containers=10 \
-        --register-schedulable=false \
-        --system-reserved=cpu=50m,memory=100Mi
+        --system-reserved=cpu=50m,memory=100Mi \
+        --logtostderr=true
 
       ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
       Restart=always
