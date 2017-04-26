@@ -369,12 +369,26 @@ func (c *Cloud) validateStackTemplate(tpl *string) error {
 	return err
 }
 
+func (c Cloud) deleteStack(name string) error {
+	params := &cloudformation.DeleteStackInput{
+		StackName: aws.String(name),
+	}
+	if _, err := c.cf.DeleteStack(params); err != nil {
+		return err
+	}
+
+	return c.waitForStackOperationCompletion(name)
+}
+
 // waitForStackOperationCompletion returns an error if a stack
 // create/update/delete operation fails. Rollback status also returns an error
 // to indicate a failure. Otherwise an error returned is nil.
 func (c *Cloud) waitForStackOperationCompletion(id string) error {
 	for {
 		s, err := c.getStack(id)
+		if s.StackId == nil {
+			return nil
+		}
 		switch {
 		case err != nil:
 			return err

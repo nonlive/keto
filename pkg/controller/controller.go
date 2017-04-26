@@ -248,15 +248,32 @@ func (c *Controller) GetClusters(name string) ([]*model.Cluster, error) {
 	return cl.GetClusters(name)
 }
 
-// DeleteNodePool deletes a node pool
-func (c *Controller) DeleteNodePool(clusterName, name string) error {
+// DeleteCluster deletes a node pool.
+func (c *Controller) DeleteCluster(name string) error {
+	cl, impl := c.Cloud.Clusters()
+	if !impl {
+		return ErrNotImplemented
+	}
+
+	return cl.DeleteCluster(name)
+}
+
+// DeleteMasterPool deletes a node pool.
+func (c *Controller) DeleteMasterPool(clusterName string) error {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
 		return ErrNotImplemented
 	}
 
-	if err := pooler.DeleteNodePool(clusterName, name); err != nil {
-		return err
+	return pooler.DeleteMasterPool(clusterName)
+}
+
+// DeleteComputePool deletes a node pool.
+func (c *Controller) DeleteComputePool(clusterName, name string) error {
+	pooler, impl := c.Cloud.NodePooler()
+	if !impl {
+		return ErrNotImplemented
 	}
-	return nil
+
+	return pooler.DeleteComputePool(clusterName, name)
 }
