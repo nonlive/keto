@@ -190,7 +190,53 @@ func (c Cloud) getELBName(clusterName string) (string, error) {
 
 // DeleteCluster deletes a cluster.
 func (c *Cloud) DeleteCluster(name string) error {
-	return ErrNotImplemented
+	if err := c.DeleteComputePool(name, ""); err != nil {
+		return err
+	}
+	if err := c.DeleteMasterPool(name); err != nil {
+		return err
+	}
+
+	if err := c.deleteStack(makeELBStackName(name)); err != nil {
+		return err
+	}
+
+	assets := []string{
+		etcdCACertObjectName,
+		etcdCAKeyObjectName,
+		kubeCACertObjectName,
+		kubeCAKeyObjectName,
+	}
+
+	bucketName, err := c.getAssetsBucketName(name)
+	if err != nil {
+		return err
+	}
+	if err := c.deleteS3Objects(bucketName, assets); err != nil {
+		return err
+	}
+
+	if err := c.deleteStack(makeClusterInfraStackName(name)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c Cloud) deleteS3Objects(b string, keys []string) error {
+	objects := []*s3.ObjectIdentifier{}
+	for _, k := range keys {
+		objects = append(objects, &s3.ObjectIdentifier{Key: aws.String(k)})
+	}
+
+	params := &s3.DeleteObjectsInput{
+		Bucket: aws.String(b),
+		Delete: &s3.Delete{
+			Objects: objects,
+			Quiet:   aws.Bool(true),
+		},
+	}
+	_, err := c.s3.DeleteObjects(params)
+	return err
 }
 
 // GetMasterPersistentIPs returns a map of master persistent NodeID
@@ -519,9 +565,60 @@ func (c *Cloud) UpgradeNodePool() error {
 	return ErrNotImplemented
 }
 
-// DeleteNodePool deletes a node pool.
-func (c *Cloud) DeleteNodePool(clusterName, name string) error {
-	return ErrNotImplemented
+// DeleteMasterPool deletes a master node pool.
+func (c *Cloud) DeleteMasterPool(clusterName string) error {
+	stacks, err := c.getStacksByType(masterPoolStackType)
+	if err != nil {
+		return err
+	}
+
+	for _, s := range stacks {
+		for _, tag := range s.Tags {
+			if *tag.Key == clusterNameTagKey && *tag.Value == clusterName {
+				if err := c.deleteStack(*s.StackId); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// DeleteComputePool deletes a node pool.
+func (c *Cloud) DeleteComputePool(clusterName, name string) error {
+	stacks, err := c.getStacksByType(computePoolStackType)
+	if err != nil {
+		return err
+	}
+
+	matched := func(tags []*cloudformation.Tag) bool {
+		n := 0
+		for _, tag := range tags {
+			if *tag.Key == clusterNameTagKey && *tag.Value == clusterName {
+				n++
+			}
+			if name != "" {
+				if *tag.Key == poolNameTagKey && *tag.Value == name {
+					n++
+				}
+			}
+			if name == "" && *tag.Key == poolNameTagKey {
+				n++
+			}
+		}
+		return n == 2
+	}
+
+	for _, s := range stacks {
+		if matched(s.Tags) {
+			if err := c.deleteStack(*s.StackId); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // getVpcIDFromSubnetList checks given subnets belong to the same VPC and

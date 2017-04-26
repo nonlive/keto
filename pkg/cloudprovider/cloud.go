@@ -70,9 +70,10 @@ type NodePooler interface {
 	// UpgradePool upgrades a node pool.
 	// TODO
 	UpgradeNodePool() error
-	// DeleteNodePool deletes a node pool.
-	// TODO
-	DeleteNodePool(clusterName, name string) error
+	// DeleteMasterPool deletes a master node pool.
+	DeleteMasterPool(clusterName string) error
+	// DeleteComputePool deletes a compute node pool.
+	DeleteComputePool(clusterName, name string) error
 }
 
 // Node is an abstract interface for interacting with a cloud provider when

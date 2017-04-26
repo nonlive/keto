@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -46,13 +45,21 @@ var deleteCmd = &cobra.Command{
 func validateDeleteFlags(c *cobra.Command, args []string) error {
 	validTypes := "Valid types: " + strings.Join(constants.ValidResourceTypes, ", ")
 
-	if len(args) < 1 {
-		return fmt.Errorf("resource type not specified. " + validTypes)
+	if len(args) < 2 {
+		return fmt.Errorf("resource type and or resource name not specified.\n" + validTypes)
 	}
 
 	if !cmdutil.StringInSlice(args[0], constants.ValidResourceTypes) {
-		return fmt.Errorf("invalid resource type. " + validTypes)
+		return fmt.Errorf("invalid resource type.\n" + validTypes)
 	}
+
+	// Check if mandatory flags are set when deleting a computepool or a masterpool.
+	if args[0] == "computepool" || args[0] == "masterpool" {
+		if !c.Flags().Changed("cluster") {
+			return fmt.Errorf("cluster name must be set")
+		}
+	}
+
 	return nil
 }
 
@@ -62,29 +69,24 @@ func runDelete(c *cobra.Command, args []string) error {
 		return err
 	}
 
+	resType := args[0]
+	resName := args[1]
+
 	clusterName, err := c.Flags().GetString("cluster")
 	if err != nil {
 		return err
 	}
-	res := args[0]
-	resName := ""
-	if len(args) == 2 {
-		resName = args[1]
+
+	switch resType {
+	case "cluster":
+		return cli.ctrl.DeleteCluster(resName)
+	case "masterpool":
+		return cli.ctrl.DeleteMasterPool(clusterName)
+	case "computepool":
+		return cli.ctrl.DeleteComputePool(clusterName, resName)
 	}
 
-	if res == "nodepool" {
-		if err := deleteNodePool(cli, clusterName, resName); err != nil {
-			return err
-		}
-	} else {
-		// TODO: implement deleting clusters
-		return errors.New("not implemented")
-	}
 	return nil
-}
-
-func deleteNodePool(cli *cli, clusterName, name string) error {
-	return cli.ctrl.DeleteNodePool(clusterName, name)
 }
 
 func init() {
