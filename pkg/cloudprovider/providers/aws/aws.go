@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strconv"
 	"strings"
 	"time"
@@ -30,12 +31,15 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elb"
+	"github.com/aws/aws-sdk-go/service/elb/elbiface"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 )
 
 const (
@@ -66,11 +70,10 @@ var (
 
 // Cloud is an implementation of cloudprovider.Interface.
 type Cloud struct {
-	cf          *cloudformation.CloudFormation
-	ec2         *ec2.EC2
-	elb         *elb.ELB
-	ec2Metadata *ec2metadata.EC2Metadata
-	s3          *s3.S3
+	cf  cloudformationiface.CloudFormationAPI
+	ec2 ec2iface.EC2API
+	elb elbiface.ELBAPI
+	s3  s3iface.S3API
 }
 
 // Compile-time check whether Cloud type value implements
@@ -237,6 +240,25 @@ func (c Cloud) deleteS3Objects(b string, keys []string) error {
 	}
 	_, err := c.s3.DeleteObjects(params)
 	return err
+}
+
+func (c Cloud) getS3Object(bucket, objectName string) ([]byte, error) {
+	params := &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(objectName),
+	}
+
+	resp, err := c.s3.GetObject(params)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return b, nil
 }
 
 // GetMasterPersistentIPs returns a map of master persistent NodeID
@@ -738,24 +760,11 @@ func newCloud(config io.Reader) (*Cloud, error) {
 		AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
 	}))
 
-	// If region has not been provided, let's try to get it from an EC2
-	// metadata service and fail if we cannot get that way.
-	if *sess.Config.Region == "" {
-		s := session.Must(session.NewSession(aws.NewConfig().WithMaxRetries(0)))
-		m := ec2metadata.New(s)
-		r, err := m.Region()
-		if err != nil {
-			return &Cloud{}, errors.New("could not find region configuration")
-		}
-		sess.Config.Region = &r
-	}
-
 	c := &Cloud{
-		cf:          cloudformation.New(sess),
-		ec2:         ec2.New(sess),
-		elb:         elb.New(sess),
-		ec2Metadata: ec2metadata.New(sess),
-		s3:          s3.New(sess),
+		cf:  cloudformation.New(sess),
+		ec2: ec2.New(sess),
+		elb: elb.New(sess),
+		s3:  s3.New(sess),
 	}
 
 	return c, nil
