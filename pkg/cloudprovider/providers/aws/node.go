@@ -23,6 +23,15 @@ func (c *Cloud) GetKubeAPIURL() (string, error) {
 	return c.getResourceTagValue(metadata.InstanceID, kubeAPIURLTagKey)
 }
 
+// GetClusterName returns the cluster-name value.
+func (c *Cloud) GetClusterName() (string, error) {
+	metadata, err := getInstanceMetadata()
+	if err != nil {
+		return "", err
+	}
+	return c.getResourceTagValue(metadata.InstanceID, clusterNameTagKey)
+}
+
 // GetKubeVersion returns a kubernetes version string.
 func (c *Cloud) GetKubeVersion() (string, error) {
 	metadata, err := getInstanceMetadata()
