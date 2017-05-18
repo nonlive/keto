@@ -85,4 +85,6 @@ type Node interface {
 	GetKubeVersion() (string, error)
 	// GetAssets gets assets onto a filesystem.
 	GetAssets() (model.Assets, error)
+	// GetClusterName gets the "name" of the cluster
+	GetClusterName() (string, error)
 }
