@@ -31,6 +31,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
@@ -759,6 +760,18 @@ func newCloud(config io.Reader) (*Cloud, error) {
 		SharedConfigState:       session.SharedConfigEnable,
 		AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
 	}))
+
+	// If region has not been provided, let's try to get it from an EC2
+	// metadata service and fail if we cannot get that way.
+	if *sess.Config.Region == "" {
+		s := session.Must(session.NewSession(aws.NewConfig().WithMaxRetries(0)))
+		m := ec2metadata.New(s)
+		r, err := m.Region()
+		if err != nil {
+			return &Cloud{}, errors.New("unable to determine region")
+		}
+		sess.Config.Region = &r
+	}
 
 	c := &Cloud{
 		cf:  cloudformation.New(sess),
