@@ -65,6 +65,15 @@ Resources:
       FromPort: -1
       ToPort: -1
 
+  MasterNodePoolComputeAPISGIn:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref MasterNodePoolSG
+      IpProtocol: "6"
+      SourceSecurityGroupId: !Ref ComputeNodePoolSG
+      FromPort: 6443
+      ToPort: 6443
+
   ComputeNodePoolSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
