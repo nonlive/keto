@@ -1,5 +1,6 @@
 /keto
 /vendor
+/config.json
 /etcd_ca.crt
 /etcd_ca.key
 /kube_ca.crt
