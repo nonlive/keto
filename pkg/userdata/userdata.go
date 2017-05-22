@@ -317,20 +317,144 @@ write_files:
 }
 
 // RenderComputeCloudConfig renders a compute cloud-config.
-func (u UserData) RenderComputeCloudConfig(kubeVersion, kubeAPIURL string) ([]byte, error) {
+func (u UserData) RenderComputeCloudConfig(cloudProviderName, clusterName, kubeVersion string) ([]byte, error) {
 	const computeTemplate = `#cloud-config
 coreos:
   update:
     reboot-strategy: "off"
-# TODO
+  units:
+  - name: docker.service
+    drop-ins:
+    - name: 10-opts.conf
+      content: |
+        [Service]
+        Environment="DOCKER_OPTS=--iptables=false --log-opt max-size=100m --log-opt max-file=1 --default-ulimit=nofile=65536:65536 --default-ulimit=nproc=16384:16384 --default-ulimit=memlock=-1:-1"
+  - name: keto-k8.service
+    command: start
+    enable: true
+    content: |
+      [Unit]
+      Description=keto-k8 (compute)
+      Documentation=https://github.com/UKHomeOffice/keto-k8
+
+      [Service]
+      EnvironmentFile=/etc/environment
+
+      # Generate / check keto-token env (only needed until we update keto-tokens)...
+      ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes
+      ExecStartPre=/usr/bin/touch /etc/kubernetes/keto-token.env
+      ExecStartPre=/usr/bin/docker run \
+        --rm \
+        --net host \
+        -v /etc/kubernetes/:/etc/kubernetes/ \
+        quay.io/ukhomeofficedigital/kmm \
+        setup-compute \
+        --cloud-provider={{ .CloudProviderName }}
+
+      EnvironmentFile=/etc/kubernetes/keto-token.env
+      ExecStartPre=/usr/bin/docker run \
+        --rm \
+        --net host \
+        -v /etc/kubernetes/:/etc/kubernetes/ \
+        ${KETO_TOKENS_IMAGE} \
+        --verbose \
+        --cloud=${KETO_TOKENS_CLOUD} \
+        client \
+        --tag-name ${KETO_TOKENS_TAG} \
+        --master ${KETO_TOKENS_API_URL} \
+        --kubeconfig ${KETO_TOKENS_KUBELET_CONF}
+
+      ExecStart=/usr/bin/bash -c "while true; do sleep 1000; done"
+      Restart=always
+      RestartSec=10
+  - name: kubelet.service
+    command: start
+    enable: true
+    content: |
+      [Unit]
+      Description=kubelet: The Kubernetes Node Agent
+      Documentation=http://kubernetes.io/docs/
+
+      [Service]
+      Environment=KUBELET_IMAGE_URL=quay.io/coreos/hyperkube
+      Environment=KUBELET_IMAGE_TAG={{ .KubeVersion }}_coreos.0
+      Environment="RKT_OPTS=\
+        --uuid-file-save=/var/run/kubelet-pod.uuid \
+        --volume etc-resolv,kind=host,source=/etc/resolv.conf --mount volume=etc-resolv,target=/etc/resolv.conf \
+        --volume var-log,kind=host,source=/var/log --mount volume=var-log,target=/var/log \
+        --volume var-lib-cni,kind=host,source=/var/lib/cni --mount volume=var-lib-cni,target=/var/lib/cni"
+      EnvironmentFile=/etc/environment
+      EnvironmentFile=/etc/kubernetes/keto-token.env
+      ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
+      ExecStartPre=/bin/mkdir -p /etc/cni/net.d
+      ExecStartPre=/bin/mkdir -p /etc/kubernetes/checkpoint-secrets
+      ExecStartPre=/bin/mkdir -p /srv/kubernetes/manifests
+      ExecStartPre=/bin/mkdir -p /var/lib/cni
+
+      ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
+      ExecStart=/usr/lib/coreos/kubelet-wrapper \
+        --allow-privileged=true \
+        --cloud-provider={{ .CloudProviderName }} \
+        --cluster-dns=10.96.0.10 \
+        --cluster-domain=cluster.local \
+        --cni-conf-dir=/etc/cni/net.d \
+        --kubeconfig=/etc/kubernetes/kubelet.conf \
+        --experimental-bootstrap-kubeconfig=${KETO_TOKENS_KUBELET_CONF} \
+        --lock-file=/var/run/lock/kubelet.lock \
+        --network-plugin=cni \
+        --hostname-override="${COREOS_PRIVATE_IPV4}" \
+        --pod-manifest-path=/etc/kubernetes/manifests \
+        --require-kubeconfig=true \
+        --image-gc-high-threshold=60 \
+        --image-gc-low-threshold=40 \
+        --system-reserved=cpu=50m,memory=100Mi \
+        --logtostderr=true
+
+      ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+write_files:
+- path: /etc/kubernetes/keto-token.env
+  permissions: "0600"
+  owner: root
+  content: |
+    # Replaced by keto-k8
+- path: /etc/kubernetes/cloud-config
+  permissions: "0600"
+  owner: root
+  content: |
+    [Global]
+    DisableSecurityGroupIngress = true
+    KubernetesClusterTag = "{{ .ClusterName }}"
+- path: /etc/sysctl.d/10-disable-ipv6.conf
+  permissions: 0644
+  owner: root
+  content: |
+    net.ipv6.conf.all.disable_ipv6 = 1
+- path: /etc/sysctl.d/50-coredump.conf
+  permissions: 0644
+  owner: root
+  content: |
+    kernel.core_pattern=' '
+- path: /etc/sysctl.d/10-max_map_count.conf
+  permissions: 0644
+  owner: root
+  content: |
+    vm.max_map_count=262144
 `
 
 	data := struct {
-		KubeVersion string
-		KubeAPIURL  string
+		ClusterName		string
+		KubeVersion		string
+		CloudProviderName	string
 	}{
-		KubeVersion: kubeVersion,
-		KubeAPIURL:  kubeAPIURL,
+		ClusterName:		clusterName,
+		KubeVersion: 		kubeVersion,
+		CloudProviderName:	cloudProviderName,
 	}
 
 	t := template.Must(template.New("compute-cloud-config").Parse(computeTemplate))

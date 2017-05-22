@@ -65,6 +65,15 @@ Resources:
       FromPort: -1
       ToPort: -1
 
+  MasterNodePoolComputeAPISGIn:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref MasterNodePoolSG
+      IpProtocol: "6"
+      SourceSecurityGroupId: !Ref ComputeNodePoolSG
+      FromPort: 6443
+      ToPort: 6443
+
   ComputeNodePoolSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
@@ -309,6 +318,13 @@ Resources:
         - !Ref InstanceRole
       PolicyDocument:
         Statement:
+          - Resource: "*"
+            Effect: Allow
+            Action:
+              - autoscaling:DescribeAutoScalingGroups
+              - ec2:CreateTags
+              - ec2:DescribeTags
+              - ec2:DescribeInstances
           - Resource: "arn:aws:s3:::{{ .AssetsBucketName }}"
             Effect: Allow
             Action:
@@ -465,6 +481,7 @@ Resources:
           - Resource: "*"
             Effect: Allow
             Action:
+              - ec2:CreateTags
               - ec2:DescribeInstances
               - ec2:DescribeTags
               - ec2:DescribeVpcs

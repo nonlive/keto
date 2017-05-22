@@ -190,7 +190,7 @@ func (c *Controller) CreateComputePool(p model.ComputePool) error {
 		p.CoreOSVersion = constants.DefaultCoreOSVersion
 	}
 
-	cloudConfig, err := c.UserData.RenderComputeCloudConfig(c.Cloud.ProviderName(), p.ClusterName)
+	cloudConfig, err := c.UserData.RenderComputeCloudConfig(c.Cloud.ProviderName(), p.ClusterName, p.KubeVersion)
 	if err != nil {
 		return err
 	}
