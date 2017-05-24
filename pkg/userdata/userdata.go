@@ -19,6 +19,8 @@ package userdata
 import (
 	"bytes"
 	"text/template"
+
+	"github.com/UKHomeOffice/keto/pkg/constants"
 )
 
 // UserData defines a user data struct
@@ -117,7 +119,7 @@ coreos:
           --net host \
           -v /data/ca:/data/ca \
           -e ETCD_CA_FILE \
-          quay.io/ukhomeofficedigital/kmm \
+          {{ .KetoK8Image }} \
           save-assets \
           --etcd-ca-key /data/ca/etcd/ca.key \
           --kube-ca-cert=/data/ca/kube/ca.crt \
@@ -136,7 +138,7 @@ coreos:
           -e ETCD_KEY_FILE \
           -e ETCD_PEER_CERT_FILE \
           -e ETCD_PEER_KEY_FILE \
-          quay.io/ukhomeofficedigital/kmm \
+          {{ .KetoK8Image }} \
           etcdcerts \
           --etcd-ca-key /data/ca/etcd/ca.key \
           --etcd-client-cert /run/kubeapiserver/etcd-client.crt \
@@ -163,13 +165,13 @@ coreos:
       content: |
         [Service]
         Environment="DOCKER_OPTS=--iptables=false --log-opt max-size=100m --log-opt max-file=1 --default-ulimit=nofile=65536:65536 --default-ulimit=nproc=16384:16384 --default-ulimit=memlock=-1:-1"
-  - name: kmm.service
+  - name: keto-k8.service
     command: start
     enable: true
     content: |
       [Unit]
-      Description=Kubernetes Multi-master
-      Documentation=https://github.com/UKHomeOffice/kmm
+      Description=Keto K8 Service
+      Documentation=https://github.com/UKHomeOffice/keto-k8
 
       [Service]
       EnvironmentFile=/etc/environment
@@ -188,7 +190,7 @@ coreos:
         -e ETCD_INITIAL_CLUSTER \
         -e ETCD_ADVERTISE_CLIENT_URLS \
         -e ETCD_CA_FILE \
-        quay.io/ukhomeofficedigital/kmm \
+        {{ .KetoK8Image }} \
         --etcd-client-ca /run/kubeapiserver/etcd-ca.crt \
         --etcd-client-cert /run/kubeapiserver/etcd-client.crt \
         --etcd-client-key /run/kubeapiserver/etcd-client.key \
@@ -252,7 +254,7 @@ write_files:
   permissions: "0644"
   owner: root
   content: |
-    # File used by both etcd-member.service and kmm.service
+    # File used by both etcd-member.service and keto-k8.service
     ETCD_INITIAL_CLUSTER={{ range $id, $ip := .MasterPersistentNodeIDIP }}{{if $id}},{{end}}Node{{ $id }}=https://{{ $ip }}:2380{{ end }}
     ETCD_CA_FILE=/data/ca/etcd/ca.crt
     ETCD_CERT_FILE=/etc/ssl/certs/server.crt
@@ -299,11 +301,13 @@ write_files:
 		CloudProviderName        string
 		ClusterName              string
 		KubeVersion              string
+		KetoK8Image              string
 		MasterPersistentNodeIDIP map[string]string
 	}{
 		CloudProviderName:        cloudProviderName,
 		ClusterName:              clusterName,
 		KubeVersion:              kubeVersion,
+		KetoK8Image:              constants.DefaultKetoK8Image,
 		MasterPersistentNodeIDIP: masterPersistentNodeIDIP,
 	}
 
@@ -347,7 +351,7 @@ coreos:
         --rm \
         --net host \
         -v /etc/kubernetes/:/etc/kubernetes/ \
-        quay.io/ukhomeofficedigital/kmm \
+        {{ .KetoK8Image }} \
         setup-compute \
         --cloud-provider={{ .CloudProviderName }}
 
@@ -451,10 +455,12 @@ write_files:
 		ClusterName		string
 		KubeVersion		string
 		CloudProviderName	string
+		KetoK8Image		string
 	}{
 		ClusterName:		clusterName,
 		KubeVersion: 		kubeVersion,
 		CloudProviderName:	cloudProviderName,
+		KetoK8Image:		constants.DefaultKetoK8Image,
 	}
 
 	t := template.Must(template.New("compute-cloud-config").Parse(computeTemplate))
