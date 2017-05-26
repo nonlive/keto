@@ -2,7 +2,7 @@ package constants
 
 const (
 	// DefaultKubeVersion specifies a default kubernetes version.
-	DefaultKubeVersion = "v1.6.3"
+	DefaultKubeVersion = "v1.6.4"
 	// DefaultKetoK8Image specifies the image to use for keto-k8 container
 	DefaultKetoK8Image = "quay.io/ukhomeofficedigital/keto-k8:v0.0.1"
 	// DefaultComputePoolSize specifies a default number of machines in a single compute pool.
