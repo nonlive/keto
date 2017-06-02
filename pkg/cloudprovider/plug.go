@@ -18,7 +18,6 @@ package cloudprovider
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"sync"
 )
@@ -31,7 +30,7 @@ var (
 // Factory is a function that returns a cloudprovider.Interface. A config
 // parameter provides an io.Reader handler to the factory to load optional
 // cloud config.
-type Factory func(config io.Reader) (Interface, error)
+type Factory func() (Interface, error)
 
 // Register registers a cloudprovider.Interface by name. This
 // is expected to be called during main startup.
@@ -47,17 +46,16 @@ func Register(name string, cloud Factory) {
 	providers[name] = cloud
 }
 
-// InitCloudProvider creates an instance of the named cloud provider. Optional
-// cloud specific config can be passed in as io.Reader.
-func InitCloudProvider(name string, config io.Reader) (Interface, error) {
+// InitCloudProvider creates an instance of the named cloud provider.
+func InitCloudProvider(name string) (Interface, error) {
 	providersMutex.Lock()
 	defer providersMutex.Unlock()
 	f, found := providers[name]
 	if !found {
 		return nil, fmt.Errorf("unknown cloud provider: %q", name)
 	}
-	// return a cloud-specific Factory result, that initializes the cloud config
-	return f(config)
+	// return a cloud-specific Factory result
+	return f()
 }
 
 // IsRegistered returns a bool whether a given cloud provider is registered.

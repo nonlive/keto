@@ -69,7 +69,7 @@ func newCLI(c *cobra.Command) (*cli, error) {
 		return &cli{}, err
 	}
 
-	cloud, err := cloudprovider.InitCloudProvider(cloudName, nil)
+	cloud, err := cloudprovider.InitCloudProvider(cloudName)
 	if err != nil {
 		return &cli{}, err
 	}
