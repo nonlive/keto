@@ -10,8 +10,10 @@ pipeline:
       - mkdir -p /go/bin
       - "curl -s https://glide.sh/get | sh"
       - glide install
+      - go get github.com/vektra/mockery/.../
+      - go generate $(go list ./... | grep -v /vendor)
       - go vet $(go list ./... | grep -v /vendor)
-      - go test -cover $(go list ./... | grep -v /vendor)
+      - go test -v -cover $(go list ./... | grep -v /vendor)
       - go build $(go list ./... | grep -v /vendor)
 
 matrix:
