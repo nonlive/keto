@@ -14,12 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface -name=CloudFormationAPI
+//go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/ec2/ec2iface -name=EC2API
+
 package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"testing"
+
+	"github.com/UKHomeOffice/keto/pkg/cloudprovider/providers/aws/mocks"
+	"github.com/UKHomeOffice/keto/pkg/model"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
 func TestGetVPCIDFromSubnetList(t *testing.T) {
@@ -61,5 +69,151 @@ func TestGetVPCIDFromSubnetList(t *testing.T) {
 			}
 
 		})
+	}
+}
+
+func TestCreateClusterInfra(t *testing.T) {
+	mockCF := &mocks.CloudFormationAPI{}
+	c := &Cloud{
+		cf: mockCF,
+	}
+
+	infraStackName := "keto-foo-infra"
+	stacks := []*cloudformation.Stack{
+		{
+			StackName: aws.String(infraStackName),
+			Tags: []*cloudformation.Tag{
+				{
+					Key:   aws.String(managedByKetoTagKey),
+					Value: aws.String(managedByKetoTagValue),
+				},
+				{
+					Key:   aws.String(stackTypeTagKey),
+					Value: aws.String(clusterInfraStackType),
+				},
+			},
+		},
+	}
+
+	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{StackName: aws.String(infraStackName)}).Return(
+		&cloudformation.DescribeStacksOutput{Stacks: stacks}, nil)
+
+	cluster := model.Cluster{Name: "foo"}
+	err := c.CreateClusterInfra(cluster)
+	if err == nil {
+		t.Error("should return an error")
+	}
+	if !mockCF.AssertExpectations(t) {
+		t.Error("not all expectations were met")
+	}
+}
+
+func TestGetClusters(t *testing.T) {
+	mockCF := &mocks.CloudFormationAPI{}
+	c := &Cloud{
+		cf: mockCF,
+	}
+
+	stacks := []*cloudformation.Stack{
+		{
+			StackName: aws.String("keto-foo-infra"),
+			Tags: []*cloudformation.Tag{
+				{
+					Key:   aws.String(managedByKetoTagKey),
+					Value: aws.String(managedByKetoTagValue),
+				},
+				{
+					Key:   aws.String(clusterNameTagKey),
+					Value: aws.String("foo"),
+				},
+				{
+					Key:   aws.String(stackTypeTagKey),
+					Value: aws.String(clusterInfraStackType),
+				},
+			},
+		},
+		{
+			StackName: aws.String("keto-bar-infra"),
+			Tags: []*cloudformation.Tag{
+				{
+					Key:   aws.String(managedByKetoTagKey),
+					Value: aws.String(managedByKetoTagValue),
+				},
+				{
+					Key:   aws.String(clusterNameTagKey),
+					Value: aws.String("bar"),
+				},
+				{
+					Key:   aws.String(stackTypeTagKey),
+					Value: aws.String(clusterInfraStackType),
+				},
+			},
+		},
+	}
+
+	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{}).Return(
+		&cloudformation.DescribeStacksOutput{Stacks: stacks}, nil)
+
+	res, err := c.GetClusters("foo")
+	if err != nil {
+		t.Error(err)
+	}
+	if len(res) != 1 {
+		t.Fatalf("should have received one result, but got %d instead", len(res))
+	}
+	if res[0].Name != "foo" {
+		t.Errorf("got wrong cluster %q", res[0].Name)
+	}
+	if !mockCF.AssertExpectations(t) {
+		t.Error("not all expectations were met")
+	}
+}
+
+func TestDeleteComputePool(t *testing.T) {
+	mockCF := &mocks.CloudFormationAPI{}
+	c := &Cloud{
+		cf: mockCF,
+	}
+
+	stacks := []*cloudformation.Stack{
+		{
+			StackId:     aws.String("foo-id"),
+			StackName:   aws.String("keto-foo-compute"),
+			StackStatus: aws.String(cloudformation.StackStatusDeleteComplete),
+			Tags: []*cloudformation.Tag{
+				{
+					Key:   aws.String(managedByKetoTagKey),
+					Value: aws.String(managedByKetoTagValue),
+				},
+				{
+					Key:   aws.String(clusterNameTagKey),
+					Value: aws.String("foo"),
+				},
+				{
+					Key:   aws.String(poolNameTagKey),
+					Value: aws.String("compute"),
+				},
+				{
+					Key:   aws.String(stackTypeTagKey),
+					Value: aws.String(computePoolStackType),
+				},
+			},
+		},
+	}
+
+	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{}).Return(
+		&cloudformation.DescribeStacksOutput{Stacks: stacks}, nil)
+
+	mockCF.On("DeleteStack", &cloudformation.DeleteStackInput{StackName: aws.String("foo-id")}).Return(
+		&cloudformation.DeleteStackOutput{}, nil)
+
+	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{StackName: aws.String("foo-id")}).Return(
+		&cloudformation.DescribeStacksOutput{Stacks: stacks}, nil)
+
+	if err := c.DeleteComputePool("foo", "compute"); err != nil {
+		t.Error(err)
+	}
+	if !mockCF.AssertExpectations(t) {
+		t.Error("not all expectations were met")
 	}
 }

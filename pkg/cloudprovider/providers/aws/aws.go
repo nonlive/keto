@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -746,39 +745,37 @@ func (c Cloud) getResourceTagValue(resourceID, key string) (string, error) {
 
 // init registers AWS cloud with the cloudprovider.
 func init() {
-	// f knows how to initialize the cloud with given config
-	f := func(config io.Reader) (cloudprovider.Interface, error) {
-		return newCloud(config)
+	// f knows how to initialize the cloud
+	f := func() (cloudprovider.Interface, error) {
+		sess := session.Must(session.NewSessionWithOptions(session.Options{
+			SharedConfigState:       session.SharedConfigEnable,
+			AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
+		}))
+
+		// If region has not been provided, let's try to get it from an EC2
+		// metadata service and fail if we cannot get that way.
+		if *sess.Config.Region == "" {
+			s := session.Must(session.NewSession(aws.NewConfig().WithMaxRetries(0)))
+			m := ec2metadata.New(s)
+			r, err := m.Region()
+			if err != nil {
+				return &Cloud{}, errors.New("unable to determine region")
+			}
+			sess.Config.Region = &r
+		}
+
+		return newCloud(sess)
 	}
 	cloudprovider.Register(ProviderName, f)
 }
 
-// newCloud creates a new instance of AWS Cloud. It takes an optional io.Reader
-// argument as a cloud config.
-func newCloud(config io.Reader) (*Cloud, error) {
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState:       session.SharedConfigEnable,
-		AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
-	}))
-
-	// If region has not been provided, let's try to get it from an EC2
-	// metadata service and fail if we cannot get that way.
-	if *sess.Config.Region == "" {
-		s := session.Must(session.NewSession(aws.NewConfig().WithMaxRetries(0)))
-		m := ec2metadata.New(s)
-		r, err := m.Region()
-		if err != nil {
-			return &Cloud{}, errors.New("unable to determine region")
-		}
-		sess.Config.Region = &r
-	}
-
+// newCloud creates a new instance of AWS Cloud given sess session.
+func newCloud(sess *session.Session) (*Cloud, error) {
 	c := &Cloud{
 		cf:  cloudformation.New(sess),
 		ec2: ec2.New(sess),
 		elb: elb.New(sess),
 		s3:  s3.New(sess),
 	}
-
 	return c, nil
 }

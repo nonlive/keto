@@ -150,7 +150,7 @@ func (c *Cloud) getStackResources(name string) ([]*cloudformation.StackResource,
 func (c *Cloud) describeStacks(name string) ([]*cloudformation.Stack, error) {
 	params := &cloudformation.DescribeStacksInput{}
 	if name != "" {
-		params = params.SetStackName(name)
+		params.StackName = aws.String(name)
 	}
 	resp, err := c.cf.DescribeStacks(params)
 	if err != nil {

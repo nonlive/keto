@@ -6,3 +6,7 @@ import:
   version: v1.8.12
   subpackages:
   - aws/ec2metadata
+- package: github.com/stretchr/testify
+  version: ^1.1.4
+  subpackages:
+  - mock
