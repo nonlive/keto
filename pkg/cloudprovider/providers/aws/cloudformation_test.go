@@ -29,9 +29,8 @@ func TestDescribeStacks(t *testing.T) {
 	if len(res) != 0 {
 		t.Errorf("got number of results: %d; want: %d", len(res), 0)
 	}
-	if !mockCF.AssertExpectations(t) {
-		t.Errorf("not everything got called as expected")
-	}
+
+	mockCF.AssertExpectations(t)
 }
 
 func TestGetStacksByType(t *testing.T) {
@@ -93,9 +92,7 @@ func TestGetStacksByType(t *testing.T) {
 		t.Errorf("got wrong stack: %q", *res[0].StackName)
 	}
 
-	if !mockCF.AssertExpectations(t) {
-		t.Errorf("not everything got called as expected")
-	}
+	mockCF.AssertExpectations(t)
 }
 
 func TestGetStackLabels(t *testing.T) {
