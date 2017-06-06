@@ -103,9 +103,8 @@ func TestCreateClusterInfra(t *testing.T) {
 	if err == nil {
 		t.Error("should return an error")
 	}
-	if !mockCF.AssertExpectations(t) {
-		t.Error("not all expectations were met")
-	}
+
+	mockCF.AssertExpectations(t)
 }
 
 func TestGetClusters(t *testing.T) {
@@ -164,9 +163,8 @@ func TestGetClusters(t *testing.T) {
 	if res[0].Name != "foo" {
 		t.Errorf("got wrong cluster %q", res[0].Name)
 	}
-	if !mockCF.AssertExpectations(t) {
-		t.Error("not all expectations were met")
-	}
+
+	mockCF.AssertExpectations(t)
 }
 
 func TestDeleteComputePool(t *testing.T) {
@@ -213,7 +211,6 @@ func TestDeleteComputePool(t *testing.T) {
 	if err := c.DeleteComputePool("foo", "compute"); err != nil {
 		t.Error(err)
 	}
-	if !mockCF.AssertExpectations(t) {
-		t.Error("not all expectations were met")
-	}
+
+	mockCF.AssertExpectations(t)
 }
