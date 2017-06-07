@@ -46,6 +46,8 @@ coreos:
   update:
     reboot-strategy: "off"
   units:
+  - name: flanneld.service
+    mask: true
   - name: systemd-sysctl.service
     command: restart
   - name: systemd-resolved.service
@@ -197,6 +199,7 @@ coreos:
         --kube-ca-cert=/data/ca/kube/ca.crt \
         --kube-ca-key=/data/ca/kube/ca.key \
         --cloud-provider={{ .CloudProviderName }} \
+        --network-provider={{ .NetworkProvider }} \
         --etcd-endpoints=https://127.0.0.1:2379
       ExecStart=/usr/bin/bash -c "while true; do sleep 1000; done"
       Restart=always
@@ -215,11 +218,14 @@ coreos:
       Environment="RKT_OPTS=\
         --uuid-file-save=/var/run/kubelet-pod.uuid \
         --volume etc-resolv,kind=host,source=/etc/resolv.conf --mount volume=etc-resolv,target=/etc/resolv.conf \
+        --volume etc-cni,kind=host,source=/etc/cni --mount volume=etc-cni,target=/etc/cni \
+        --volume opt-cni,kind=host,source=/opt/cni/bin,readOnly=true --mount volume=opt-cni,target=/opt/cni/bin \
         --volume var-log,kind=host,source=/var/log --mount volume=var-log,target=/var/log \
         --volume var-lib-cni,kind=host,source=/var/lib/cni --mount volume=var-lib-cni,target=/var/lib/cni"
       EnvironmentFile=/etc/environment
       ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
       ExecStartPre=/bin/mkdir -p /etc/cni/net.d
+      ExecStartPre=/bin/mkdir -p /opt/cni/bin
       ExecStartPre=/bin/mkdir -p /etc/kubernetes/checkpoint-secrets
       ExecStartPre=/bin/mkdir -p /srv/kubernetes/manifests
       ExecStartPre=/bin/mkdir -p /var/lib/cni
@@ -303,12 +309,14 @@ write_files:
 		KubeVersion              string
 		KetoK8Image              string
 		MasterPersistentNodeIDIP map[string]string
+		NetworkProvider          string
 	}{
 		CloudProviderName:        cloudProviderName,
 		ClusterName:              clusterName,
 		KubeVersion:              kubeVersion,
 		KetoK8Image:              constants.DefaultKetoK8Image,
 		MasterPersistentNodeIDIP: masterPersistentNodeIDIP,
+		NetworkProvider:          constants.DefaultNetworkProvider,
 	}
 
 	t := template.Must(template.New("master-cloud-config").Parse(masterTemplate))
@@ -327,6 +335,8 @@ coreos:
   update:
     reboot-strategy: "off"
   units:
+  - name: flanneld.service
+    mask: true
   - name: docker.service
     drop-ins:
     - name: 10-opts.conf
@@ -385,12 +395,15 @@ coreos:
       Environment="RKT_OPTS=\
         --uuid-file-save=/var/run/kubelet-pod.uuid \
         --volume etc-resolv,kind=host,source=/etc/resolv.conf --mount volume=etc-resolv,target=/etc/resolv.conf \
+        --volume etc-cni,kind=host,source=/etc/cni,readOnly=true --mount volume=etc-cni,target=/etc/cni \
+        --volume opt-cni,kind=host,source=/opt/cni/bin,readOnly=true --mount volume=opt-cni,target=/opt/cni/bin \
         --volume var-log,kind=host,source=/var/log --mount volume=var-log,target=/var/log \
         --volume var-lib-cni,kind=host,source=/var/lib/cni --mount volume=var-lib-cni,target=/var/lib/cni"
       EnvironmentFile=/etc/environment
       EnvironmentFile=/etc/kubernetes/keto-token.env
       ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
       ExecStartPre=/bin/mkdir -p /etc/cni/net.d
+      ExecStartPre=/bin/mkdir -p /opt/cni/bin
       ExecStartPre=/bin/mkdir -p /etc/kubernetes/checkpoint-secrets
       ExecStartPre=/bin/mkdir -p /srv/kubernetes/manifests
       ExecStartPre=/bin/mkdir -p /var/lib/cni
