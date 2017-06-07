@@ -23,9 +23,17 @@ import (
 	"github.com/UKHomeOffice/keto/pkg/constants"
 )
 
-// UserData defines a user data struct
-type UserData struct {
+// UserDater is an abstract interface for UserData, mainly for testing.
+type UserDater interface {
+	RenderMasterCloudConfig(string, string, string, map[string]string) ([]byte, error)
+	RenderComputeCloudConfig(string, string, string) ([]byte, error)
 }
+
+// UserData defines a user data struct.
+type UserData struct{}
+
+// Compile-time check whether UserData type value implements UserDater interface.
+var _ UserDater = (*UserData)(nil)
 
 // New returns a new UserData struct
 func New() *UserData {
@@ -465,15 +473,15 @@ write_files:
 `
 
 	data := struct {
-		ClusterName		string
-		KubeVersion		string
-		CloudProviderName	string
-		KetoK8Image		string
+		ClusterName       string
+		KubeVersion       string
+		CloudProviderName string
+		KetoK8Image       string
 	}{
-		ClusterName:		clusterName,
-		KubeVersion: 		kubeVersion,
-		CloudProviderName:	cloudProviderName,
-		KetoK8Image:		constants.DefaultKetoK8Image,
+		ClusterName:       clusterName,
+		KubeVersion:       kubeVersion,
+		CloudProviderName: cloudProviderName,
+		KetoK8Image:       constants.DefaultKetoK8Image,
 	}
 
 	t := template.Must(template.New("compute-cloud-config").Parse(computeTemplate))

@@ -5,4 +5,6 @@
 /etcd_ca.key
 /kube_ca.crt
 /kube_ca.key
-pkg/cloudprovider/providers/aws/mocks/
+
+pkg/**/mocks/
+/mocks

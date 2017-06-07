@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/pkg/userdata -name=UserDater
+
 package userdata
 
 import (

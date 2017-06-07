@@ -29,6 +29,12 @@ import (
 var (
 	// ErrNotImplemented is an error for not implemented features.
 	ErrNotImplemented = errors.New("not implemented")
+	// ErrClusterAlreadyExists is an error to report an existing cluster.
+	ErrClusterAlreadyExists = errors.New("cluster already exists")
+	// ErrClusterDoesNotExist is an error to report a non-existing cluster.
+	ErrClusterDoesNotExist = errors.New("cluster does not exist")
+	// ErrMasterPoolAlreadyExists is an error to report an existing master pool.
+	ErrMasterPoolAlreadyExists = errors.New("masterpool already exists")
 )
 
 // Controller represents a controller.
@@ -39,7 +45,7 @@ type Controller struct {
 // Config represents a controller configuration.
 type Config struct {
 	Cloud    cloudprovider.Interface
-	UserData *userdata.UserData
+	UserData userdata.UserDater
 }
 
 // Validate validates controller configuration.
@@ -62,6 +68,14 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
 		return ErrNotImplemented
+	}
+
+	exists, err := c.clusterExists(cluster.Name, cl)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrClusterAlreadyExists
 	}
 
 	if err := cl.CreateClusterInfra(cluster); err != nil {
@@ -93,16 +107,20 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 		return ErrNotImplemented
 	}
 
-	// Check if cluster exists first.
-	if exists, err := c.clusterExists(p.ClusterName, cl); !exists {
+	exists, err := c.clusterExists(p.ClusterName, cl)
+	if err != nil {
 		return err
 	}
+	if !exists {
+		return ErrClusterDoesNotExist
+	}
+
 	m, err := c.GetMasterPools(p.ClusterName, "")
 	if err != nil {
 		return err
 	}
 	if len(m) != 0 {
-		return fmt.Errorf("masterpool already exists in cluster %q", p.ClusterName)
+		return ErrMasterPoolAlreadyExists
 	}
 
 	// Use defaults if values aren't specified.
@@ -135,12 +153,9 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 }
 
 func (c *Controller) clusterExists(name string, cl cloudprovider.Clusters) (bool, error) {
-	if c, err := cl.GetClusters(name); len(c) == 0 {
-		errMsg := "cluster not found"
-		if err != nil {
-			errMsg = fmt.Sprintf("%s: %v", errMsg, err)
-		}
-		return false, errors.New(errMsg)
+	clusters, err := cl.GetClusters(name)
+	if err != nil || len(clusters) != 1 {
+		return false, nil
 	}
 	return true, nil
 }
@@ -201,14 +216,10 @@ func (c *Controller) CreateComputePool(p model.ComputePool) error {
 
 func (c *Controller) computePoolExists(clusterName, name string, pooler cloudprovider.NodePooler) (bool, error) {
 	p, err := pooler.GetComputePools(clusterName, name)
-	if len(p) != 0 && err == nil {
-		return true, nil
+	if err != nil || len(p) == 0 {
+		return false, err
 	}
-
-	if err != nil {
-		return false, fmt.Errorf("unable to get compute pools: %v", err)
-	}
-	return false, nil
+	return true, nil
 }
 
 // GetMasterPools returns a list of master pools
@@ -248,7 +259,7 @@ func (c *Controller) GetClusters(name string) ([]*model.Cluster, error) {
 	return cl.GetClusters(name)
 }
 
-// DeleteCluster deletes a node pool.
+// DeleteCluster deletes a cluster.
 func (c *Controller) DeleteCluster(name string) error {
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
@@ -258,7 +269,7 @@ func (c *Controller) DeleteCluster(name string) error {
 	return cl.DeleteCluster(name)
 }
 
-// DeleteMasterPool deletes a node pool.
+// DeleteMasterPool deletes a master node pool.
 func (c *Controller) DeleteMasterPool(clusterName string) error {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
@@ -268,7 +279,7 @@ func (c *Controller) DeleteMasterPool(clusterName string) error {
 	return pooler.DeleteMasterPool(clusterName)
 }
 
-// DeleteComputePool deletes a node pool.
+// DeleteComputePool deletes a compute node pool.
 func (c *Controller) DeleteComputePool(clusterName, name string) error {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
