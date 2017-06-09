@@ -53,6 +53,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "keto-{{ .ClusterName }}-masterpool"
+        - Key: KubernetesCluster
+          Value: "{{ .ClusterName }}"
 
   # Allow traffic between master nodes.
   # TODO(vaijab): not all traffic needs to be allowed, maybe just etcd?
@@ -91,7 +93,9 @@ Resources:
           ToPort: -1
       Tags:
         - Key: Name
-          Value: "keto-{{ .ClusterName }}-masterpool"
+          Value: "keto-{{ .ClusterName }}-computepool"
+        - Key: KubernetesCluster
+          Value: "{{ .ClusterName }}
 
   # Allow traffic between all compute pools.
   # TODO(vaijab): would be nice to isolate different compute pools from each other.
@@ -209,6 +213,9 @@ Resources:
           CidrIp: 0.0.0.0/0
           FromPort: "6443"
           ToPort: "6443"
+      Tags:
+        - Key: Name
+          Value: "keto-{{ .ClusterName }}-kubeapi"
 
   # Allow ELB to talk to master node pool on 6443/tcp
   ELBtoMasterNodePoolTrafficSG:
@@ -366,7 +373,9 @@ Resources:
               - elasticloadbalancing:Create*
               - elasticloadbalancing:Delete*
               - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
+              - elasticloadbalancing:DescribeLoadBalancerAttributes
               - elasticloadbalancing:DescribeLoadBalancers
+              - elasticloadbalancing:ModifyLoadBalancerAttributes
               - elasticloadbalancing:RegisterInstancesWithLoadBalancer
               - elasticloadbalancing:SetLoadBalancerPoliciesForBackendServer
 
@@ -392,6 +401,9 @@ Resources:
       Tags:
         - Key: Name
           Value: "keto-{{ $masterNodePool.ClusterName }}-master"
+          PropagateAtLaunch: true
+        - Key: KubernetesCluster
+          Value: "{{ $masterNodePool.ClusterName }}
           PropagateAtLaunch: true
   LaunchConfiguration{{ $index }}:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -503,6 +515,9 @@ Resources:
         - Key: Name
           Value: "keto-{{ .ComputeNodePool.ClusterName }}-compute"
           PropagateAtLaunch: true
+        - Key: KubernetesCluster
+          Value: "{{ .ComputeNodePool.ClusterName }}"
+          PropagateAtLaunch: true
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -541,5 +556,6 @@ Resources:
 	if err := t.Execute(&b, data); err != nil {
 		return "", err
 	}
+
 	return b.String(), nil
 }
