@@ -131,10 +131,10 @@ coreos:
           -e ETCD_CA_FILE \
           {{ .KetoK8Image }} \
           save-assets \
+          --cloud-provider={{ .CloudProviderName }} \
           --etcd-ca-key /data/ca/etcd/ca.key \
           --kube-ca-cert=/data/ca/kube/ca.crt \
-          --kube-ca-key=/data/ca/kube/ca.key \
-          --cloud-provider={{ .CloudProviderName }}
+          --kube-ca-key=/data/ca/kube/ca.key
 
         # Create the ETCD certs from the ETCD CA
         ExecStartPre=/bin/mkdir -p /run/etcd/certs
@@ -163,11 +163,11 @@ coreos:
 
         ExecStart=
         ExecStart=/usr/lib/coreos/etcd-wrapper \
-          --name=Node${NODE_ID} \
           --advertise-client-urls=https://${NODE_IP}:2379 \
           --initial-advertise-peer-urls=https://${NODE_IP}:2380 \
           --listen-client-urls=https://${NODE_IP}:2379,https://localhost:2379 \
-          --listen-peer-urls=https://${NODE_IP}:2380
+          --listen-peer-urls=https://${NODE_IP}:2380 \
+          --name=Node${NODE_ID}
   - name: docker.service
     enable: true
     drop-ins:
@@ -201,14 +201,14 @@ coreos:
         -e ETCD_ADVERTISE_CLIENT_URLS \
         -e ETCD_CA_FILE \
         {{ .KetoK8Image }} \
+        --cloud-provider={{ .CloudProviderName }} \
         --etcd-client-ca /run/kubeapiserver/etcd-ca.crt \
         --etcd-client-cert /run/kubeapiserver/etcd-client.crt \
         --etcd-client-key /run/kubeapiserver/etcd-client.key \
+        --etcd-endpoints=https://127.0.0.1:2379 \
         --kube-ca-cert=/data/ca/kube/ca.crt \
         --kube-ca-key=/data/ca/kube/ca.key \
-        --cloud-provider={{ .CloudProviderName }} \
-        --network-provider={{ .NetworkProvider }} \
-        --etcd-endpoints=https://127.0.0.1:2379
+        --network-provider={{ .NetworkProvider }}
       ExecStart=/usr/bin/bash -c "while true; do sleep 1000; done"
       Restart=always
       RestartSec=10
@@ -241,20 +241,21 @@ coreos:
       ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
       ExecStart=/usr/lib/coreos/kubelet-wrapper \
         --allow-privileged=true \
+        --cloud-config=/etc/kubernetes/cloud-config \
         --cloud-provider={{ .CloudProviderName }} \
         --cluster-dns=10.96.0.10 \
         --cluster-domain=cluster.local \
         --cni-conf-dir=/etc/cni/net.d \
-        --kubeconfig=/etc/kubernetes/kubelet.conf \
-        --lock-file=/var/run/lock/kubelet.lock \
-        --network-plugin=cni \
         --hostname-override="${COREOS_PRIVATE_IPV4}" \
-        --pod-manifest-path=/etc/kubernetes/manifests \
-        --require-kubeconfig=true \
         --image-gc-high-threshold=60 \
         --image-gc-low-threshold=40 \
-        --system-reserved=cpu=50m,memory=100Mi \
-        --logtostderr=true
+        --kubeconfig=/etc/kubernetes/kubelet.conf \
+        --lock-file=/var/run/lock/kubelet.lock \
+        --logtostderr=true \
+        --network-plugin=cni \
+        --pod-manifest-path=/etc/kubernetes/manifests \
+        --require-kubeconfig=true \
+        --system-reserved=cpu=50m,memory=100Mi
 
       ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
       Restart=always
@@ -419,6 +420,7 @@ coreos:
       ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
       ExecStart=/usr/lib/coreos/kubelet-wrapper \
         --allow-privileged=true \
+        --cloud-config=/etc/kubernetes/cloud-config \
         --cloud-provider={{ .CloudProviderName }} \
         --cluster-dns=10.96.0.10 \
         --cluster-domain=cluster.local \

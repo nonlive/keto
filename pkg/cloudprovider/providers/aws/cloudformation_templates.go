@@ -95,7 +95,7 @@ Resources:
         - Key: Name
           Value: "keto-{{ .ClusterName }}-computepool"
         - Key: KubernetesCluster
-          Value: "{{ .ClusterName }}
+          Value: "{{ .ClusterName }}"
 
   # Allow traffic between all compute pools.
   # TODO(vaijab): would be nice to isolate different compute pools from each other.
@@ -403,7 +403,7 @@ Resources:
           Value: "keto-{{ $masterNodePool.ClusterName }}-master"
           PropagateAtLaunch: true
         - Key: KubernetesCluster
-          Value: "{{ $masterNodePool.ClusterName }}
+          Value: "{{ $masterNodePool.ClusterName }}"
           PropagateAtLaunch: true
   LaunchConfiguration{{ $index }}:
     Type: AWS::AutoScaling::LaunchConfiguration
