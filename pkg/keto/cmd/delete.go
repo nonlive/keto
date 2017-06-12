@@ -54,7 +54,7 @@ func validateDeleteFlags(c *cobra.Command, args []string) error {
 	}
 
 	// Check if mandatory flags are set when deleting a computepool or a masterpool.
-	if args[0] == "computepool" || args[0] == "masterpool" {
+	if args[0] == constants.DefaultComputeName || args[0] == constants.DefaultMasterName {
 		if !c.Flags().Changed("cluster") {
 			return fmt.Errorf("cluster name must be set")
 		}
@@ -80,9 +80,9 @@ func runDelete(c *cobra.Command, args []string) error {
 	switch resType {
 	case "cluster":
 		return cli.ctrl.DeleteCluster(resName)
-	case "masterpool":
+	case constants.DefaultMasterName:
 		return cli.ctrl.DeleteMasterPool(clusterName)
-	case "computepool":
+	case constants.DefaultComputeName:
 		return cli.ctrl.DeleteComputePool(clusterName, resName)
 	}
 

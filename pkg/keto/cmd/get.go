@@ -74,11 +74,11 @@ func runGet(c *cobra.Command, args []string) error {
 	}
 
 	switch res {
-	case "cluster":
+	case constants.DefaultClusterName:
 		return listClusters(cli, resName)
-	case "masterpool":
+	case constants.DefaultMasterName:
 		return listMasterPools(cli, clusterName, resName)
-	case "computepool":
+	case constants.DefaultComputeName:
 		return listComputePools(cli, clusterName, resName)
 	}
 	return nil
