@@ -23,6 +23,7 @@ import (
 	userdataMocks "github.com/UKHomeOffice/keto/pkg/userdata/mocks"
 
 	"github.com/UKHomeOffice/keto/pkg/model"
+	"github.com/UKHomeOffice/keto/testutil"
 )
 
 const cloudProviderName = "mock"
@@ -41,7 +42,7 @@ func TestCreateCluster(t *testing.T) {
 	persistentIPs := map[string]string{"node0": "1.1.1.1"}
 	cluster := model.Cluster{
 		Name:       "foo",
-		MasterPool: model.MasterPool{NodePool: makeNodePool("foo", "master")},
+		MasterPool: model.MasterPool{NodePool: testutil.MakeNodePool("foo", "master")},
 	}
 
 	m.Clusters.On("GetClusters", cluster.Name).Return([]*model.Cluster{}, nil).Once()
@@ -78,7 +79,7 @@ func TestCreateClusterAlreadyExists(t *testing.T) {
 
 	cluster := model.Cluster{
 		Name:       "foo",
-		MasterPool: model.MasterPool{NodePool: makeNodePool("foo", "master")},
+		MasterPool: model.MasterPool{NodePool: testutil.MakeNodePool("foo", "master")},
 	}
 
 	m.Clusters.On("GetClusters", cluster.Name).Return([]*model.Cluster{&cluster}, nil).Once()
@@ -95,7 +96,7 @@ func TestCreateMasterPoolAlreadyExists(t *testing.T) {
 
 	clusterName := "foo"
 	p := model.MasterPool{
-		NodePool: makeNodePool(clusterName, "master"),
+		NodePool: testutil.MakeNodePool(clusterName, "master"),
 	}
 
 	m.Clusters.On("GetClusters", clusterName).Return([]*model.Cluster{&model.Cluster{Name: clusterName}}, nil).Once()
@@ -134,27 +135,4 @@ func makeTestMock() (*testMock, *Controller) {
 
 	ctrl := New(Config{Cloud: m.Provider, UserData: m.UserData})
 	return m, ctrl
-}
-
-func makeNodePool(clusterName, name string) model.NodePool {
-	meta := model.ResourceMeta{
-		Name:        name,
-		ClusterName: clusterName,
-	}
-
-	spec := model.NodePoolSpec{
-		KubeVersion:   "v1.7.0",
-		MachineType:   "tiny",
-		CoreOSVersion: "v1",
-		SSHKey:        "s3cr3tkey",
-		DiskSize:      10,
-		Size:          1,
-		Networks:      []string{"network0", "network1"},
-		UserData:      []byte("mocked userdata"),
-	}
-
-	return model.NodePool{
-		ResourceMeta: meta,
-		NodePoolSpec: spec,
-	}
 }

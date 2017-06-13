@@ -18,9 +18,10 @@ limitations under the License.
 package testutil
 
 import (
+	"strings"
 	"testing"
 
-	"strings"
+	"github.com/UKHomeOffice/keto/pkg/model"
 )
 
 // CheckTemplate is a testing helper function that attempts to find match
@@ -28,5 +29,29 @@ import (
 func CheckTemplate(t *testing.T, s, match string) {
 	if !strings.Contains(s, match) {
 		t.Errorf("failed to render the template; %q not found", match)
+	}
+}
+
+// MakeNodePool is a helper function that makes a new model.NodePool for testing.
+func MakeNodePool(clusterName, name string) model.NodePool {
+	meta := model.ResourceMeta{
+		Name:        name,
+		ClusterName: clusterName,
+	}
+
+	spec := model.NodePoolSpec{
+		KubeVersion:   "v1.7.0",
+		MachineType:   "tiny",
+		CoreOSVersion: "CoreOS-beta-1409.1.0-hvm",
+		SSHKey:        "s3cr3tkey",
+		DiskSize:      10,
+		Size:          1,
+		Networks:      []string{"network0", "network1"},
+		UserData:      []byte("mocked userdata"),
+	}
+
+	return model.NodePool{
+		ResourceMeta: meta,
+		NodePoolSpec: spec,
 	}
 }
