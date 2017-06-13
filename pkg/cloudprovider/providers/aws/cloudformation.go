@@ -18,6 +18,7 @@ package aws
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -175,10 +176,13 @@ func isStackManaged(s *cloudformation.Stack) bool {
 }
 
 func (c *Cloud) createClusterInfraStack(clusterName, vpcID string, subnets []*ec2.Subnet) error {
-	templateBody, err := renderClusterInfraStackTemplate(clusterName, vpcID, subnets)
+	networks := getNodesDistributionAcrossNetworks(subnets)
+
+	templateBody, err := renderClusterInfraStackTemplate(clusterName, vpcID, networks)
 	if err != nil {
 		return err
 	}
+
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeClusterInfraStackName(clusterName)),
 		Tags:         makeStackTags(clusterName, clusterInfraStackType, "", "", "", "", "", "", 0),
@@ -186,6 +190,59 @@ func (c *Cloud) createClusterInfraStack(clusterName, vpcID string, subnets []*ec
 	}
 
 	return c.createStack(stack)
+}
+
+type nodesNetwork struct {
+	Subnet           string
+	AvailabilityZone string
+	NodeID           int
+}
+
+// getNodesDistributionAcrossNetworks calculates a number of nodes per network,
+// given a list of networks. Single network setup gets 3 nodes. Multi-network
+// setup get at least 5 nodes or more. Returns a list of nodesNetwork.
+func getNodesDistributionAcrossNetworks(subnets []*ec2.Subnet) []nodesNetwork {
+	// Make sure ec2 subnets are sorted by SubnetId.
+	sort.Slice(subnets, func(i, j int) bool { return *subnets[i].SubnetId < *subnets[j].SubnetId })
+
+	dist := []nodesNetwork{}
+
+	if len(subnets) == 1 {
+		for i := 0; i < 3; i++ {
+			dist = append(dist, nodesNetwork{
+				Subnet:           *subnets[0].SubnetId,
+				AvailabilityZone: *subnets[0].AvailabilityZone,
+				NodeID:           i,
+			})
+		}
+		return dist
+	}
+
+	total := 0
+	for i := 0; i < len(subnets); i++ {
+		dist = append(dist, nodesNetwork{
+			Subnet:           *subnets[i].SubnetId,
+			AvailabilityZone: *subnets[i].AvailabilityZone,
+			NodeID:           i,
+		})
+		total++
+	}
+	if total < 5 {
+		for i := 1; i < 6-total; i++ {
+			n := dist[i]
+			n.NodeID = total
+			dist = append(dist, n)
+			total++
+		}
+	}
+	if total%2 == 0 {
+		// Append an additional item to make sure we have an odd number of nodes in total.
+		n := dist[0]
+		n.NodeID = total
+		dist = append(dist, n)
+		total++
+	}
+	return dist
 }
 
 // makeClusterInfraStackName returns cluster infra stack name.
@@ -202,8 +259,12 @@ func (c *Cloud) createMasterPoolStack(
 	kubeAPIURL string,
 	assetsBucketName string,
 ) error {
+	nodesPerSubnet, err := c.calcNodesPerSubnet(p.Networks)
+	if err != nil {
+		return err
+	}
 
-	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID, elbName, assetsBucketName)
+	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID, elbName, assetsBucketName, nodesPerSubnet)
 	if err != nil {
 		return err
 	}
@@ -217,6 +278,20 @@ func (c *Cloud) createMasterPoolStack(
 	}
 
 	return c.createStack(stack)
+}
+
+func (c *Cloud) calcNodesPerSubnet(networks []string) (map[string]int, error) {
+	subnets, err := c.describeSubnets(networks)
+	m := make(map[string]int)
+	if err != nil {
+		return m, err
+	}
+
+	dist := getNodesDistributionAcrossNetworks(subnets)
+	for _, n := range dist {
+		m[n.Subnet]++
+	}
+	return m, nil
 }
 
 // makeMasterPoolStackName returns master stack name for either blue or green stack.
@@ -356,6 +431,9 @@ func (c *Cloud) createStack(in *cloudformation.CreateStackInput) error {
 	resp, err := c.cf.CreateStack(in)
 	if err != nil {
 		return err
+	}
+	if resp.StackId == nil {
+		return fmt.Errorf("failed to create %q stack, stack id is nil in response", *in.StackName)
 	}
 
 	return c.waitForStackOperationCompletion(*resp.StackId)

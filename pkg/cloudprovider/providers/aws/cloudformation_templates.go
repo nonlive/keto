@@ -19,14 +19,14 @@ package aws
 import (
 	"bytes"
 	"encoding/base64"
+	"sort"
+	"strings"
 	"text/template"
 
 	"github.com/UKHomeOffice/keto/pkg/model"
-
-	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
-func renderClusterInfraStackTemplate(clusterName, vpcID string, subnets []*ec2.Subnet) (string, error) {
+func renderClusterInfraStackTemplate(clusterName, vpcID string, networks []nodesNetwork) (string, error) {
 	const (
 		clusterInfraStackTemplate = `---
 Description: "Kubernetes cluster '{{ .ClusterName }}' infra stack"
@@ -120,35 +120,35 @@ Resources:
       ToPort: "-1"
 
 {{ $clusterName := .ClusterName -}}
-{{ range $index, $subnet := .Subnets }}
-  ENI{{ $index }}:
+{{ range $_, $n := .Networks }}
+  ENI{{ $n.NodeID }}:
     Type: "AWS::EC2::NetworkInterface"
     Properties:
       Description: "Kubernetes cluster {{ $clusterName }} master ENI"
       GroupSet:
         - !Ref MasterNodePoolSG
       SourceDestCheck: false
-      SubnetId: "{{ $subnet.SubnetId }}"
+      SubnetId: "{{ $n.Subnet }}"
       Tags:
         # Required for smilodon
         - Key: "NodeID"
-          Value: "{{ $index }}"
+          Value: "{{ $n.NodeID }}"
         - Key: Name
-          Value: "keto-{{ $clusterName }}-eni{{ $index }}"
+          Value: "keto-{{ $clusterName }}-eni{{ $n.NodeID }}"
 
-  Volume{{ $index }}:
+  Volume{{ $n.NodeID }}:
     Type: AWS::EC2::Volume
     Properties:
       Encrypted: true
       Size: 10
       VolumeType: gp2
-      AvailabilityZone: {{ $subnet.AvailabilityZone }}
+      AvailabilityZone: {{ $n.AvailabilityZone }}
       Tags:
         # Required for smilodon
         - Key: NodeID
-          Value: "{{ $index }}"
+          Value: "{{ $n.NodeID }}"
         - Key: Name
-          Value: "keto-{{ $clusterName }}-volume{{ $index }}"
+          Value: "keto-{{ $clusterName }}-volume{{ $n.NodeID }}"
   {{ end }}
 
 Outputs:
@@ -177,11 +177,11 @@ Outputs:
 
 	data := struct {
 		ClusterName string
-		Subnets     []*ec2.Subnet
+		Networks    []nodesNetwork
 		VpcID       string
 	}{
 		ClusterName: clusterName,
-		Subnets:     subnets,
+		Networks:    networks,
 		VpcID:       vpcID,
 	}
 
@@ -264,6 +264,9 @@ Outputs:
 `
 	)
 
+	// Make sure networks are always in the same order.
+	sort.Strings(p.Networks)
+
 	data := struct {
 		ClusterName           string
 		Networks              []string
@@ -290,6 +293,7 @@ func renderMasterStackTemplate(
 	amiID string,
 	elbName string,
 	assetsBucketName string,
+	nodesPerSubnet map[string]int,
 ) (string, error) {
 
 	const (
@@ -384,11 +388,11 @@ Resources:
 {{ $amiID := .AmiID -}}
 {{ $elbName := .ELBName -}}
 {{ $clusterInfraStackName := .ClusterInfraStackName -}}
-{{ range $index, $subnet := $masterNodePool.Networks }}
-  ASGinAZ{{ $index }}:
+{{ range $subnet, $num := .NodesPerSubnet }}
+  ASG{{ rmdash $subnet }}:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      LaunchConfigurationName: !Ref LaunchConfiguration{{ $index }}
+      LaunchConfigurationName: !Ref LaunchConfiguration{{ rmdash $subnet }}
       VPCZoneIdentifier:
         - "{{ $subnet }}"
       LoadBalancerNames:
@@ -396,8 +400,8 @@ Resources:
       TerminationPolicies:
         - 'OldestInstance'
         - 'Default'
-      MaxSize: 1
-      MinSize: 1
+      MaxSize: {{ $num }}
+      MinSize: {{ $num }}
       Tags:
         - Key: Name
           Value: "keto-{{ $masterNodePool.ClusterName }}-master"
@@ -405,7 +409,7 @@ Resources:
         - Key: KubernetesCluster
           Value: "{{ $masterNodePool.ClusterName }}"
           PropagateAtLaunch: true
-  LaunchConfiguration{{ $index }}:
+  LaunchConfiguration{{ rmdash $subnet }}:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       AssociatePublicIpAddress: true
@@ -427,6 +431,9 @@ Resources:
 `
 	)
 
+	// Make sure networks are always in the same order.
+	sort.Strings(p.Networks)
+
 	data := struct {
 		MasterNodePool        model.MasterPool
 		ClusterInfraStackName string
@@ -434,6 +441,7 @@ Resources:
 		ELBName               string
 		UserData              string
 		AssetsBucketName      string
+		NodesPerSubnet        map[string]int
 	}{
 		MasterNodePool:        p,
 		ClusterInfraStackName: clusterInfraStackName,
@@ -441,9 +449,17 @@ Resources:
 		ELBName:          elbName,
 		UserData:         base64.StdEncoding.EncodeToString(p.UserData),
 		AssetsBucketName: assetsBucketName,
+		NodesPerSubnet:   nodesPerSubnet,
 	}
 
-	t := template.Must(template.New("master-stack").Parse(masterStackTemplate))
+	funcMap := template.FuncMap{
+		// Deletes dashes from a string.
+		"rmdash": func(s string) string {
+			return strings.Replace(s, "-", "", -1)
+		},
+	}
+
+	t := template.Must(template.New("master-stack").Funcs(funcMap).Parse(masterStackTemplate))
 	var b bytes.Buffer
 	if err := t.Execute(&b, data); err != nil {
 		return "", err
@@ -538,6 +554,9 @@ Resources:
       UserData: {{ .UserData }}
 `
 	)
+
+	// Make sure networks are always in the same order.
+	sort.Strings(p.Networks)
 
 	data := struct {
 		ComputeNodePool       model.ComputePool
