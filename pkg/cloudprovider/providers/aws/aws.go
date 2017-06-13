@@ -93,14 +93,6 @@ func (c *Cloud) Clusters() (cloudprovider.Clusters, bool) {
 // CreateClusterInfra creates a new cluster, by creating ENIs, volumes and other
 // cluster infra related resources.
 func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
-	infraStackExists, err := c.stackExists(makeClusterInfraStackName(cluster.Name))
-	if err != nil {
-		return err
-	}
-	if infraStackExists {
-		return errors.New("cluster already exists")
-	}
-
 	subnets, err := c.describeSubnets(cluster.MasterPool.Networks)
 	if err != nil {
 		return err
@@ -113,7 +105,8 @@ func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
 	if err := c.createClusterInfraStack(cluster.Name, vpcID, subnets); err != nil {
 		return err
 	}
-	return nil
+
+	return c.createLoadBalancer(cluster.MasterPool)
 }
 
 // GetClusters returns a cluster by name or all clusters in the region.
@@ -390,16 +383,6 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 		p.Networks = append(p.Networks, *n.SubnetId)
 	}
 
-	elbStackExists, err := c.stackExists(makeELBStackName(p.ClusterName))
-	if err != nil {
-		return err
-	}
-	if !elbStackExists {
-		if err := c.createLoadBalancer(p); err != nil {
-			return err
-		}
-	}
-
 	amiID, err := c.getAMIByName(p.CoreOSVersion)
 	if err != nil {
 		return err
@@ -409,19 +392,19 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 	if err != nil {
 		return err
 	}
+
 	kubeAPIURL, err := c.getKubeAPIURLFromELB(p.ClusterName)
 	if err != nil {
 		return err
 	}
-	infraStackName := makeClusterInfraStackName(p.ClusterName)
+
 	bucket, err := c.getAssetsBucketName(p.ClusterName)
 	if err != nil {
 		return err
 	}
-	if err := c.createMasterPoolStack(p, infraStackName, amiID, elbName, kubeAPIURL, bucket); err != nil {
-		return err
-	}
-	return nil
+
+	infraStackName := makeClusterInfraStackName(p.ClusterName)
+	return c.createMasterPoolStack(p, infraStackName, amiID, elbName, kubeAPIURL, bucket)
 }
 
 // createLoadBalancer ensures a load balancer is created.

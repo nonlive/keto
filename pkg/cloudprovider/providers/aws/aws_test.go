@@ -16,18 +16,24 @@ limitations under the License.
 
 //go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface -name=CloudFormationAPI
 //go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/ec2/ec2iface -name=EC2API
+//go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/elb/elbiface -name=ELBAPI
 
 package aws
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider/providers/aws/mocks"
 	"github.com/UKHomeOffice/keto/pkg/model"
+	"github.com/UKHomeOffice/keto/testutil"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/elb"
+
+	"github.com/stretchr/testify/mock"
 )
 
 func TestGetVPCIDFromSubnetList(t *testing.T) {
@@ -74,34 +80,55 @@ func TestGetVPCIDFromSubnetList(t *testing.T) {
 
 func TestCreateClusterInfra(t *testing.T) {
 	mockCF := &mocks.CloudFormationAPI{}
+	mockEC2 := &mocks.EC2API{}
 	c := &Cloud{
-		cf: mockCF,
+		cf:  mockCF,
+		ec2: mockEC2,
 	}
 
-	infraStackName := "keto-foo-infra"
-	stacks := []*cloudformation.Stack{
-		{
-			StackName: aws.String(infraStackName),
-			Tags: []*cloudformation.Tag{
+	clusterName := "foo"
+	p := model.MasterPool{NodePool: testutil.MakeNodePool(clusterName, "master")}
+	p.Networks = []string{"network0", "network1"}
+	cluster := model.Cluster{
+		Name:       clusterName,
+		MasterPool: p,
+	}
+
+	returnSubnetsFunc := func() *ec2.DescribeSubnetsOutput {
+		subnets := []*ec2.Subnet{}
+		for _, n := range p.Networks {
+			subnets = append(subnets, &ec2.Subnet{
+				SubnetId:         aws.String(n),
+				VpcId:            aws.String("vpc0"),
+				AvailabilityZone: aws.String("az0"),
+			})
+		}
+		return &ec2.DescribeSubnetsOutput{Subnets: subnets}
+	}
+
+	mockEC2.On("DescribeSubnets", &ec2.DescribeSubnetsInput{
+		SubnetIds: aws.StringSlice(p.Networks),
+	}).Return(returnSubnetsFunc(), nil)
+
+	mockCF.On("ValidateTemplate", mock.AnythingOfType("*cloudformation.ValidateTemplateInput")).Return(
+		&cloudformation.ValidateTemplateOutput{}, nil)
+
+	stackName := makeClusterInfraStackName(clusterName)
+	mockCF.On("CreateStack", mock.AnythingOfType("*cloudformation.CreateStackInput")).Return(
+		&cloudformation.CreateStackOutput{StackId: aws.String(stackName)}, nil)
+
+	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{StackName: aws.String(stackName)}).Return(
+		&cloudformation.DescribeStacksOutput{
+			Stacks: []*cloudformation.Stack{
 				{
-					Key:   aws.String(managedByKetoTagKey),
-					Value: aws.String(managedByKetoTagValue),
-				},
-				{
-					Key:   aws.String(stackTypeTagKey),
-					Value: aws.String(clusterInfraStackType),
+					StackId:     aws.String(stackName),
+					StackStatus: aws.String(cloudformation.StackStatusCreateComplete),
 				},
 			},
-		},
-	}
+		}, nil)
 
-	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{StackName: aws.String(infraStackName)}).Return(
-		&cloudformation.DescribeStacksOutput{Stacks: stacks}, nil)
-
-	cluster := model.Cluster{Name: "foo"}
-	err := c.CreateClusterInfra(cluster)
-	if err == nil {
-		t.Error("should return an error")
+	if err := c.CreateClusterInfra(cluster); err != nil {
+		t.Error(err)
 	}
 
 	mockCF.AssertExpectations(t)
@@ -213,4 +240,127 @@ func TestDeleteComputePool(t *testing.T) {
 	}
 
 	mockCF.AssertExpectations(t)
+}
+
+func TestCreateMasterPool(t *testing.T) {
+	mockCF := &mocks.CloudFormationAPI{}
+	mockEC2 := &mocks.EC2API{}
+	mockELB := &mocks.ELBAPI{}
+	c := &Cloud{
+		cf:  mockCF,
+		ec2: mockEC2,
+		elb: mockELB,
+	}
+
+	clusterName := "foo"
+	infraSubnet := "infranetwork0"
+	p := model.MasterPool{NodePool: testutil.MakeNodePool(clusterName, "master")}
+
+	mockEC2.On("DescribeNetworkInterfaces", &ec2.DescribeNetworkInterfacesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + managedByKetoTagKey),
+				Values: []*string{aws.String(managedByKetoTagValue)},
+			},
+			{
+				Name:   aws.String("tag:" + clusterNameTagKey),
+				Values: []*string{aws.String(clusterName)},
+			},
+		},
+	}).Return(&ec2.DescribeNetworkInterfacesOutput{
+		NetworkInterfaces: []*ec2.NetworkInterface{
+			{
+				SubnetId: aws.String(infraSubnet),
+			},
+		},
+	}, nil).Once()
+
+	mockEC2.On("DescribeImages", &ec2.DescribeImagesInput{
+		Owners: []*string{aws.String(coreOSAWSAccountID)},
+		Filters: []*ec2.Filter{
+			{Name: aws.String("name"), Values: []*string{aws.String(p.CoreOSVersion)}},
+			{Name: aws.String("virtualization-type"), Values: []*string{aws.String("hvm")}},
+			{Name: aws.String("state"), Values: []*string{aws.String("available")}},
+		},
+	}).Return(&ec2.DescribeImagesOutput{
+		Images: []*ec2.Image{
+			{
+				ImageId: aws.String("ami123"),
+			},
+		},
+	}, nil).Once()
+
+	mockCF.On("DescribeStackResources", &cloudformation.DescribeStackResourcesInput{
+		StackName: aws.String(makeELBStackName(clusterName)),
+	}).Return(&cloudformation.DescribeStackResourcesOutput{
+		StackResources: []*cloudformation.StackResource{
+			{
+				ResourceType:       aws.String("AWS::ElasticLoadBalancing::LoadBalancer"),
+				PhysicalResourceId: aws.String("elb-physical-id"),
+			},
+		},
+	}, nil)
+
+	mockCF.On("DescribeStackResources", &cloudformation.DescribeStackResourcesInput{
+		StackName: aws.String(makeClusterInfraStackName(clusterName)),
+	}).Return(&cloudformation.DescribeStackResourcesOutput{
+		StackResources: []*cloudformation.StackResource{
+			{
+				ResourceType:       aws.String("AWS::ElasticLoadBalancing::LoadBalancer"),
+				PhysicalResourceId: aws.String("elb-physical-id"),
+			},
+		},
+	}, nil).Once()
+
+	mockELB.On("DescribeLoadBalancers", &elb.DescribeLoadBalancersInput{
+		LoadBalancerNames: []*string{aws.String("elb-physical-id")},
+	}).Return(&elb.DescribeLoadBalancersOutput{
+		LoadBalancerDescriptions: []*elb.LoadBalancerDescription{
+			{
+				DNSName: aws.String("elb.local"),
+			},
+		},
+	}, nil)
+
+	mockEC2.On("DescribeSubnets", &ec2.DescribeSubnetsInput{
+		SubnetIds: aws.StringSlice([]string{infraSubnet})}).Return(&ec2.DescribeSubnetsOutput{
+		Subnets: []*ec2.Subnet{
+			{
+				SubnetId:         aws.String(infraSubnet),
+				VpcId:            aws.String("vpc0"),
+				AvailabilityZone: aws.String("az0"),
+			}}},
+		nil)
+
+	mockCF.On("ValidateTemplate", mock.AnythingOfType("*cloudformation.ValidateTemplateInput")).Return(
+		&cloudformation.ValidateTemplateOutput{}, nil)
+
+	masterPoolStackID := "masterpool-stack-id"
+	mockCF.On("CreateStack", mock.MatchedBy(func(in *cloudformation.CreateStackInput) bool {
+		// Assume that the cluster infra already exists in a single AZ, so the
+		// specified subnets, when creating this MasterPool, must be ignored and
+		// cluster infra subnets must be used.
+		return strings.Contains(*in.TemplateBody, infraSubnet)
+	})).Return(
+		&cloudformation.CreateStackOutput{
+			StackId: aws.String(masterPoolStackID),
+		}, nil)
+
+	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{StackName: aws.String(masterPoolStackID)}).Return(
+		&cloudformation.DescribeStacksOutput{
+			Stacks: []*cloudformation.Stack{
+				{
+					StackId:     aws.String(masterPoolStackID),
+					StackStatus: aws.String(cloudformation.StackStatusDeleteComplete),
+				},
+			},
+		}, nil)
+
+	if err := c.CreateMasterPool(p); err != nil {
+		t.Error(err)
+	}
+
+	mockCF.AssertExpectations(t)
+	mockELB.AssertExpectations(t)
+	mockEC2.AssertExpectations(t)
 }
