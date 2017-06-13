@@ -38,7 +38,8 @@ type Labels map[string]string
 
 // MasterPool is a representation of a master control plane node pool.
 type MasterPool struct {
-	KubeAPIURL string
+	KubeAPIURL      string
+	KubeAPINetworks []string
 	NodePool
 }
 

@@ -274,7 +274,7 @@ Outputs:
 		ClusterInfraStackName string
 	}{
 		ClusterName: p.ClusterName,
-		Networks:    p.Networks,
+		Networks:    p.KubeAPINetworks,
 		VpcID:       vpcID,
 		ClusterInfraStackName: clusterInfraStackName,
 	}

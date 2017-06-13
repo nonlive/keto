@@ -104,6 +104,11 @@ func addNetworksFlag(c *cobra.Command) {
 	c.Flags().StringSlice("networks", []string{}, "Cloud specific list of comma separated networks")
 }
 
+// addAPINetworksFlag add the network flags for kubeapi
+func addAPINetworksFlag(c *cobra.Command) {
+	c.Flags().StringSlice("api-networks", []string{}, "List of networks the kube api is attached (default to master subnets)")
+}
+
 // addCoreOSVersionFlag adds an OS flag
 func addCoreOSVersionFlag(c *cobra.Command) {
 	c.Flags().String("coreos-version", "", fmt.Sprintf("Operating system (default %q)", constants.DefaultCoreOSVersion))

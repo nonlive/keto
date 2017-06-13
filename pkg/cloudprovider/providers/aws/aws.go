@@ -409,7 +409,7 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 
 // createLoadBalancer ensures a load balancer is created.
 func (c *Cloud) createLoadBalancer(p model.MasterPool) error {
-	subnets, err := c.describeSubnets(p.Networks)
+	subnets, err := c.describeSubnets(p.KubeAPINetworks)
 	if err != nil {
 		return err
 	}
@@ -417,8 +417,8 @@ func (c *Cloud) createLoadBalancer(p model.MasterPool) error {
 	if err != nil {
 		return err
 	}
-
 	infraStackName := makeClusterInfraStackName(p.ClusterName)
+
 	return c.createELBStack(p, vpcID, infraStackName)
 }
 

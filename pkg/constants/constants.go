@@ -15,9 +15,15 @@ const (
 	// TODO only works for AWS cloud for now. Need to figure out some sort of
 	// validation and CoreOS version to cloud image name mapping.
 	DefaultCoreOSVersion = "CoreOS-stable-1353.6.0-hvm"
+	// DefaultClusterName is the cluster name
+	DefaultClusterName = "cluster"
+	// DefaultMasterName is the name of the masterpool prefix
+	DefaultMasterName = "masterpool"
+	// DefaultComputeName is the name of the masterpool prefix
+	DefaultComputeName = "computepool"
 )
 
 var (
 	// ValidResourceTypes contains a list of currently supported resource types.
-	ValidResourceTypes = []string{"cluster", "masterpool", "computepool"}
+	ValidResourceTypes = []string{DefaultClusterName, DefaultMasterName, DefaultComputeName}
 )
