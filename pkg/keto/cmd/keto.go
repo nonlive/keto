@@ -149,3 +149,7 @@ func addKubeVersionFlag(c *cobra.Command) {
 func addAssetsDirFlag(c *cobra.Command) {
 	c.Flags().String("assets-dir", "", "The path to etcd/kube CA certs and keys")
 }
+
+func addComputePools(c *cobra.Command) {
+	c.Flags().Int("compute-pools", 1, "Number of compute pools to create")
+}
