@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/UKHomeOffice/keto/pkg/constants"
@@ -112,6 +113,14 @@ func runCreate(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	numComputePools, err := c.Flags().GetInt("compute-pools")
+	if err != nil {
+		return err
+	}
+	size, err := c.Flags().GetInt("pool-size")
+	if err != nil {
+		return err
+	}
 	diskSize, err := c.Flags().GetInt("disk-size")
 	if err != nil {
 		return err
@@ -140,7 +149,19 @@ func runCreate(c *cobra.Command, args []string) error {
 		cluster := model.Cluster{}
 		cluster.Name = resName
 		cluster.MasterPool = makeMasterPool("master", cluster.Name, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
-		cluster.ComputePools = []model.ComputePool{makeComputePool("compute", cluster.Name, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)}
+
+		for i := 0; i < numComputePools; i++ {
+			cluster.ComputePools = append(cluster.ComputePools, makeComputePool(
+				"compute"+strconv.Itoa(i),
+				cluster.Name,
+				coreOSVersion,
+				kubeVersion,
+				sshKey,
+				machineType,
+				size,
+				diskSize,
+				networks))
+		}
 
 		return cli.ctrl.CreateCluster(cluster, a)
 	}
@@ -154,7 +175,7 @@ func runCreate(c *cobra.Command, args []string) error {
 
 	if resType == "computepool" {
 		pool := model.ComputePool{}
-		pool = makeComputePool(resName, clusterName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
+		pool = makeComputePool(resName, clusterName, coreOSVersion, kubeVersion, sshKey, machineType, size, diskSize, networks)
 
 		return cli.ctrl.CreateComputePool(pool)
 	}
@@ -241,7 +262,7 @@ func makeMasterPool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machi
 	return p
 }
 
-func makeComputePool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machineType string,
+func makeComputePool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machineType string, size,
 	diskSize int, networks []string) model.ComputePool {
 
 	p := model.ComputePool{}
@@ -253,6 +274,7 @@ func makeComputePool(name, clusterName, coreOSVersion, kubeVersion, sshKey, mach
 	p.Networks = networks
 	p.DiskSize = diskSize
 	p.MachineType = machineType
+	p.Size = size
 	return p
 }
 
@@ -266,6 +288,7 @@ func init() {
 	addSSHKeyFlag(createCmd)
 	addDiskSizeFlag(createCmd)
 	addMachineTypeFlag(createCmd)
+	addComputePools(createCmd)
 	addPoolSizeFlag(createCmd)
 	addDNSZoneFlag(createCmd)
 	addLabelsFlag(createCmd)

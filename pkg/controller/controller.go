@@ -90,10 +90,12 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 		return err
 	}
 
-	// A user may decide not to create compute pools as part of cluster creation.
-	if len(cluster.ComputePools) == 1 {
-		if err := c.CreateComputePool(cluster.ComputePools[0]); err != nil {
-			return err
+	// A user may decide not to create a compute pool during a cluster creation.
+	if len(cluster.ComputePools) > 0 {
+		for i := 0; i < len(cluster.ComputePools); i++ {
+			if err := c.CreateComputePool(cluster.ComputePools[i]); err != nil {
+				return err
+			}
 		}
 	}
 
