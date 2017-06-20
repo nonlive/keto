@@ -529,7 +529,7 @@ Resources:
       MinSize: {{ .ComputeNodePool.Size }}
       Tags:
         - Key: Name
-          Value: "keto-{{ .ComputeNodePool.ClusterName }}-compute"
+          Value: "keto-{{ .ComputeNodePool.ClusterName }}-{{ .ComputeNodePool.Name }}"
           PropagateAtLaunch: true
         - Key: KubernetesCluster
           Value: "{{ .ComputeNodePool.ClusterName }}"
