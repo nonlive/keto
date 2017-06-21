@@ -29,14 +29,10 @@ var versionCmd = &cobra.Command{
 	Short: "Print version",
 	Long:  "Print version",
 	Run: func(c *cobra.Command, args []string) {
-		printVersion()
+		versionCmdFunc()
 	},
 }
 
-func printVersion() {
+func versionCmdFunc() {
 	fmt.Printf("%+v\n", version.Get())
-}
-
-func init() {
-	RootCmd.AddCommand(versionCmd)
 }

@@ -17,33 +17,49 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
-// describeCmd represents the create command
+// describeCmd represents the 'describe' command
 var describeCmd = &cobra.Command{
-	Use:   "describe",
-	Short: "Describe a resource",
-	Long:  "Describe a resource",
-	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Work your own magic here
-		fmt.Println("describe called")
+	Use:   "describe <subcommand",
+	Short: "Describe resources",
+}
+
+var describeClusterCmd = &cobra.Command{
+	Use:          "cluster <NAME>",
+	Aliases:      clusterCmdAliases,
+	Short:        "Describe a cluster",
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return errNotImplemented
+	},
+}
+
+var describeMasterPoolCmd = &cobra.Command{
+	Use:          "masterpool <NAME>",
+	Aliases:      masterPoolCmdAliases,
+	Short:        "Describe a masterpool",
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return errNotImplemented
+	},
+}
+
+var describeComputePoolCmd = &cobra.Command{
+	Use:          "computepool <NAME>",
+	Aliases:      computePoolCmdAliases,
+	Short:        "Describe a computepool",
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return errNotImplemented
 	},
 }
 
 func init() {
-	RootCmd.AddCommand(describeCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// createCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// createCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
+	describeCmd.AddCommand(
+		describeClusterCmd,
+		describeMasterPoolCmd,
+		describeComputePoolCmd,
+	)
 }

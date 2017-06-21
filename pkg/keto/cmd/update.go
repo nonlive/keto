@@ -17,32 +17,49 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
-// updateCmd represents the create command
+// updateCmd represents the 'update' command
 var updateCmd = &cobra.Command{
 	Use:   "update",
-	Short: "Update a resource",
-	Long:  "Update a resource",
-	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Work your own magic here
-		fmt.Println("update called")
+	Short: "Update resources",
+}
+
+var updateClusterCmd = &cobra.Command{
+	Use:          "cluster <NAME>",
+	Aliases:      clusterCmdAliases,
+	Short:        "Update a cluster",
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return errNotImplemented
+	},
+}
+
+var updateMasterPoolCmd = &cobra.Command{
+	Use:          "masterpool <NAME>",
+	Aliases:      masterPoolCmdAliases,
+	Short:        "Update a masterpool",
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return errNotImplemented
+	},
+}
+
+var updateComputePoolCmd = &cobra.Command{
+	Use:          "computepool <NAME>",
+	Aliases:      computePoolCmdAliases,
+	Short:        "Update a computepool",
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return errNotImplemented
 	},
 }
 
 func init() {
-	RootCmd.AddCommand(updateCmd)
-
-	// Add flags that are relevant to update cmd.
-	addClusterFlag(updateCmd)
-	addCoreOSVersionFlag(updateCmd)
-	addSSHKeyFlag(updateCmd)
-	addDiskSizeFlag(updateCmd)
-	addMachineTypeFlag(updateCmd)
-	addPoolSizeFlag(updateCmd)
-	addLabelsFlag(updateCmd)
-	addKubeVersionFlag(updateCmd)
+	updateCmd.AddCommand(
+		updateClusterCmd,
+		updateMasterPoolCmd,
+		updateComputePoolCmd,
+	)
 }
