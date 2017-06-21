@@ -17,118 +17,69 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
-	"strings"
 
-	"github.com/UKHomeOffice/keto/pkg/constants"
-	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
 	"github.com/UKHomeOffice/keto/pkg/model"
 
 	"github.com/spf13/cobra"
 )
 
-// createCmd represents the create command
+// createCmd represents the 'create' command
 var createCmd = &cobra.Command{
-	Use:          "create <" + strings.Join(constants.ValidResourceTypes, "|") + "> <NAME>",
+	Use:          "create <subcommand>",
 	Short:        "Create a resource",
-	Long:         "Create a cluster or add a new computepool to existing cluster",
-	ValidArgs:    constants.ValidResourceTypes,
+	Long:         "Create a new resource",
+	SilenceUsage: true,
+}
+
+var createClusterCmd = &cobra.Command{
+	Use:          "cluster NAME",
+	Aliases:      clusterCmdAliases,
+	Short:        "Create a cluster",
+	Long:         "Create a cluster",
 	SilenceUsage: true,
 	PreRunE: func(c *cobra.Command, args []string) error {
 		return validateCreateFlags(c, args)
 	},
 	RunE: func(c *cobra.Command, args []string) error {
-		return runCreate(c, args)
+		return createClusterCmdFunc(c, args)
 	},
 }
 
 func validateCreateFlags(c *cobra.Command, args []string) error {
-	validTypes := "Valid types: " + strings.Join(constants.ValidResourceTypes, ", ")
-
-	if len(args) < 2 {
-		return fmt.Errorf("resource type and or resource name not specified.\n" + validTypes)
-	}
-
-	if !cmdutil.StringInSlice(args[0], constants.ValidResourceTypes) {
-		return fmt.Errorf("invalid resource type.\n" + validTypes)
-	}
-
-	// Check if mandatory flags are set when creating a computepool or a masterpool.
-	if args[0] == "computepool" || args[0] == "masterpool" {
+	// Check if cluster name has been set. TODO(vaijab): should controller take
+	// care of validation?
+	if c.Name() == "masterpool" || c.Name() == "computepool" {
 		if !c.Flags().Changed("cluster") {
 			return fmt.Errorf("cluster name must be set")
 		}
 	}
 
-	// At this point cluster infra already exists, masterpool should be created
-	// in the same networks, don't insist on needing the networks to be
-	// specified when creating a masterpool.
-	if args[0] != "masterpool" {
-		if !c.Flags().Changed("networks") {
-			return fmt.Errorf("networks must be set")
-		}
-	}
-
-	// TODO(vaijab): should not be required. Cloud providers could have sensible defaults.
+	// TODO(vaijab): should not be required. Cloud providers could have
+	// sensible defaults, the logic should live in the controller though.
 	if !c.Flags().Changed("machine-type") {
 		return fmt.Errorf("machine type must be set")
 	}
 
+	// TODO(vaijab): should default to master ssh-key when creating compute
+	// pools if not specified, the logic should live in the controller though.
 	if !c.Flags().Changed("ssh-key") {
 		return fmt.Errorf("ssh key must be set")
 	}
 	return nil
 }
 
-func runCreate(c *cobra.Command, args []string) error {
-	cli, err := newCLI(c)
-	if err != nil {
-		return err
+func createClusterCmdFunc(c *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("cluster name is not specified")
 	}
+	name := args[0]
 
-	resType := args[0]
-	resName := args[1]
-
-	clusterName, err := c.Flags().GetString("cluster")
-	if err != nil {
-		return err
-	}
-	coreOSVersion, err := c.Flags().GetString("coreos-version")
-	if err != nil {
-		return err
-	}
-	kubeVersion, err := c.Flags().GetString("kube-version")
-	if err != nil {
-		return err
-	}
-	sshKey, err := c.Flags().GetString("ssh-key")
-	if err != nil {
-		return err
-	}
-	machineType, err := c.Flags().GetString("machine-type")
-	if err != nil {
-		return err
-	}
-	numComputePools, err := c.Flags().GetInt("compute-pools")
-	if err != nil {
-		return err
-	}
-	size, err := c.Flags().GetInt("pool-size")
-	if err != nil {
-		return err
-	}
-	diskSize, err := c.Flags().GetInt("disk-size")
-	if err != nil {
-		return err
-	}
-	networks, err := c.Flags().GetStringSlice("networks")
-	if err != nil {
-		return err
-	}
 	assetsDir, err := c.Flags().GetString("assets-dir")
 	if err != nil {
 		return err
@@ -136,51 +87,41 @@ func runCreate(c *cobra.Command, args []string) error {
 	if assetsDir == "" {
 		d, err := os.Getwd()
 		if err != nil {
-			return nil
+			return err
 		}
 		assetsDir = d
 	}
+	a, err := readAssetFiles(assetsDir)
+	if err != nil {
+		return err
+	}
 
-	if resType == "cluster" {
-		a, err := readAssetFiles(assetsDir)
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
+	}
+
+	cluster := model.Cluster{}
+	cluster.Name = name
+	p, err := makeMasterPool("master", name, *c)
+	if err != nil {
+		return err
+	}
+	cluster.MasterPool = p
+
+	numComputePools, err := c.Flags().GetInt("compute-pools")
+	if err != nil {
+		return err
+	}
+	for i := 0; i < numComputePools; i++ {
+		p, err := makeComputePool("compute"+strconv.Itoa(i), name, *c)
 		if err != nil {
 			return err
 		}
-		cluster := model.Cluster{}
-		cluster.Name = resName
-		cluster.MasterPool = makeMasterPool("master", cluster.Name, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
-
-		for i := 0; i < numComputePools; i++ {
-			cluster.ComputePools = append(cluster.ComputePools, makeComputePool(
-				"compute"+strconv.Itoa(i),
-				cluster.Name,
-				coreOSVersion,
-				kubeVersion,
-				sshKey,
-				machineType,
-				size,
-				diskSize,
-				networks))
-		}
-
-		return cli.ctrl.CreateCluster(cluster, a)
+		cluster.ComputePools = append(cluster.ComputePools, p)
 	}
 
-	if resType == "masterpool" {
-		pool := model.MasterPool{}
-		pool = makeMasterPool(resName, clusterName, coreOSVersion, kubeVersion, sshKey, machineType, diskSize, networks)
-
-		return cli.ctrl.CreateMasterPool(pool)
-	}
-
-	if resType == "computepool" {
-		pool := model.ComputePool{}
-		pool = makeComputePool(resName, clusterName, coreOSVersion, kubeVersion, sshKey, machineType, size, diskSize, networks)
-
-		return cli.ctrl.CreateComputePool(pool)
-	}
-
-	return nil
+	return cli.ctrl.CreateCluster(cluster, a)
 }
 
 // readAssetFiles reads asset files as byte arrays from the directory d and returns
@@ -247,10 +188,70 @@ func fileExists(f string) bool {
 	return true
 }
 
-func makeMasterPool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machineType string,
-	diskSize int, networks []string) model.MasterPool {
+var createMasterPoolCmd = &cobra.Command{
+	Use:          "masterpool NAME",
+	Aliases:      masterPoolCmdAliases,
+	Short:        "Create a masterpool",
+	Long:         "Create a masterpool",
+	SilenceUsage: true,
+	PreRunE: func(c *cobra.Command, args []string) error {
+		return validateCreateFlags(c, args)
+	},
+	RunE: func(c *cobra.Command, args []string) error {
+		return createMasterPoolCmdFunc(c, args)
+	},
+}
 
+func createMasterPoolCmdFunc(c *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("masterpool name is not specified")
+	}
+	name := args[0]
+
+	clusterName, err := c.Flags().GetString("cluster")
+	if err != nil {
+		return err
+	}
+	p, err := makeMasterPool(name, clusterName, *c)
+	if err != nil {
+		return err
+	}
+
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
+	}
+	return cli.ctrl.CreateMasterPool(p)
+}
+
+func makeMasterPool(name, clusterName string, c cobra.Command) (model.MasterPool, error) {
 	p := model.MasterPool{}
+
+	coreOSVersion, err := c.Flags().GetString("coreos-version")
+	if err != nil {
+		return p, err
+	}
+	kubeVersion, err := c.Flags().GetString("kube-version")
+	if err != nil {
+		return p, err
+	}
+	sshKey, err := c.Flags().GetString("ssh-key")
+	if err != nil {
+		return p, err
+	}
+	machineType, err := c.Flags().GetString("machine-type")
+	if err != nil {
+		return p, err
+	}
+	diskSize, err := c.Flags().GetInt("disk-size")
+	if err != nil {
+		return p, err
+	}
+	networks, err := c.Flags().GetStringSlice("networks")
+	if err != nil {
+		return p, err
+	}
+
 	p.Name = name
 	p.ClusterName = clusterName
 	p.CoreOSVersion = coreOSVersion
@@ -259,13 +260,77 @@ func makeMasterPool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machi
 	p.Networks = networks
 	p.DiskSize = diskSize
 	p.MachineType = machineType
-	return p
+	return p, nil
 }
 
-func makeComputePool(name, clusterName, coreOSVersion, kubeVersion, sshKey, machineType string, size,
-	diskSize int, networks []string) model.ComputePool {
+var createComputePoolCmd = &cobra.Command{
+	Use:          "computepool NAME",
+	Aliases:      computePoolCmdAliases,
+	Short:        "Create a computepool",
+	Long:         "Create a computepool",
+	SilenceUsage: true,
+	PreRunE: func(c *cobra.Command, args []string) error {
+		return validateCreateFlags(c, args)
+	},
+	RunE: func(c *cobra.Command, args []string) error {
+		return createComputePoolCmdFunc(c, args)
+	},
+}
 
+func createComputePoolCmdFunc(c *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("computepool name is not specified")
+	}
+	name := args[0]
+
+	clusterName, err := c.Flags().GetString("cluster")
+	if err != nil {
+		return err
+	}
+	p, err := makeComputePool(name, clusterName, *c)
+	if err != nil {
+		return err
+	}
+
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
+	}
+	return cli.ctrl.CreateComputePool(p)
+}
+
+func makeComputePool(name, clusterName string, c cobra.Command) (model.ComputePool, error) {
 	p := model.ComputePool{}
+
+	coreOSVersion, err := c.Flags().GetString("coreos-version")
+	if err != nil {
+		return p, err
+	}
+	kubeVersion, err := c.Flags().GetString("kube-version")
+	if err != nil {
+		return p, err
+	}
+	sshKey, err := c.Flags().GetString("ssh-key")
+	if err != nil {
+		return p, err
+	}
+	machineType, err := c.Flags().GetString("machine-type")
+	if err != nil {
+		return p, err
+	}
+	size, err := c.Flags().GetInt("pool-size")
+	if err != nil {
+		return p, err
+	}
+	diskSize, err := c.Flags().GetInt("disk-size")
+	if err != nil {
+		return p, err
+	}
+	networks, err := c.Flags().GetStringSlice("networks")
+	if err != nil {
+		return p, err
+	}
+
 	p.Name = name
 	p.ClusterName = clusterName
 	p.CoreOSVersion = coreOSVersion
@@ -275,23 +340,78 @@ func makeComputePool(name, clusterName, coreOSVersion, kubeVersion, sshKey, mach
 	p.DiskSize = diskSize
 	p.MachineType = machineType
 	p.Size = size
-	return p
+	return p, nil
 }
 
 func init() {
-	RootCmd.AddCommand(createCmd)
+	createCmd.AddCommand(
+		createClusterCmd,
+		createMasterPoolCmd,
+		createComputePoolCmd,
+	)
 
-	// Add flags that are relevant to create cmd.
-	addClusterFlag(createCmd)
-	addNetworksFlag(createCmd)
-	addCoreOSVersionFlag(createCmd)
-	addSSHKeyFlag(createCmd)
-	addDiskSizeFlag(createCmd)
-	addMachineTypeFlag(createCmd)
-	addComputePools(createCmd)
-	addPoolSizeFlag(createCmd)
-	addDNSZoneFlag(createCmd)
-	addLabelsFlag(createCmd)
-	addKubeVersionFlag(createCmd)
-	addAssetsDirFlag(createCmd)
+	// Add flags that are relevant to different subcommands.
+	addClusterFlag(
+		createMasterPoolCmd,
+		createComputePoolCmd,
+	)
+
+	addNetworksFlag(
+		createClusterCmd,
+		createMasterPoolCmd,
+		createComputePoolCmd,
+	)
+
+	addCoreOSVersionFlag(
+		createClusterCmd,
+		createMasterPoolCmd,
+		createComputePoolCmd,
+	)
+
+	addSSHKeyFlag(
+		createClusterCmd,
+		createMasterPoolCmd,
+		createComputePoolCmd,
+	)
+
+	addDiskSizeFlag(
+		createClusterCmd,
+		createMasterPoolCmd,
+		createComputePoolCmd,
+	)
+
+	addMachineTypeFlag(
+		createClusterCmd,
+		createMasterPoolCmd,
+		createComputePoolCmd,
+	)
+
+	addLabelsFlag(
+		createClusterCmd,
+		createComputePoolCmd,
+		createMasterPoolCmd,
+	)
+
+	addKubeVersionFlag(
+		createClusterCmd,
+		createComputePoolCmd,
+		createMasterPoolCmd,
+	)
+
+	addPoolSizeFlag(
+		createClusterCmd,
+		createComputePoolCmd,
+	)
+
+	addComputePoolsFlag(
+		createClusterCmd,
+	)
+
+	addAssetsDirFlag(
+		createClusterCmd,
+	)
+
+	addDNSZoneFlag(
+		createClusterCmd,
+	)
 }

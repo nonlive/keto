@@ -17,71 +17,106 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"os"
-	"strings"
 
-	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/keto"
-	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
 
 	"github.com/spf13/cobra"
 )
 
-// getCmd represents the get command
+// getCmd represents the 'get' command
 var getCmd = &cobra.Command{
-	Use:          "get <" + strings.Join(constants.ValidResourceTypes, "|") + "> [NAME]",
-	Short:        "Get a resource",
-	Long:         "Get a resource",
-	SuggestFor:   []string{"list"},
-	ValidArgs:    constants.ValidResourceTypes,
+	Use:        "get <subcommand>",
+	Short:      "Get resources",
+	SuggestFor: []string{"list"},
+}
+
+var getClusterCmd = &cobra.Command{
+	Use:          "cluster [NAME]",
+	Aliases:      clusterCmdAliases,
+	Short:        "Get clusters",
+	Long:         "Get clusters",
+	SuggestFor:   []string{"clusters"},
 	SilenceUsage: true,
-	PreRunE: func(c *cobra.Command, args []string) error {
-		return validateGetFlags(c, args)
-	},
 	RunE: func(c *cobra.Command, args []string) error {
-		return runGet(c, args)
+		return getClusterCmdFunc(c, args)
 	},
 }
 
-func validateGetFlags(c *cobra.Command, args []string) error {
-	validTypes := "Valid types: " + strings.Join(constants.ValidResourceTypes, ", ")
-
-	if len(args) < 1 {
-		return fmt.Errorf("resource type not specified. " + validTypes)
+func getClusterCmdFunc(c *cobra.Command, args []string) error {
+	name := ""
+	if len(args) == 1 {
+		name = args[0]
 	}
 
-	if !cmdutil.StringInSlice(args[0], constants.ValidResourceTypes) {
-		return fmt.Errorf("invalid resource type. " + validTypes)
-	}
-	return nil
-}
-
-func runGet(c *cobra.Command, args []string) error {
 	cli, err := newCLI(c)
 	if err != nil {
 		return err
 	}
 
+	return listClusters(cli, name)
+}
+
+var getMasterPoolCmd = &cobra.Command{
+	Use:          "masterpool [NAME]",
+	Aliases:      masterPoolCmdAliases,
+	Short:        "Get master pools",
+	Long:         "Get master pools",
+	SuggestFor:   []string{"masters", "pool"},
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return getMasterPoolCmdFunc(c, args)
+	},
+}
+
+func getMasterPoolCmdFunc(c *cobra.Command, args []string) error {
 	clusterName, err := c.Flags().GetString("cluster")
 	if err != nil {
 		return err
 	}
-	res := args[0]
-	resName := ""
-	if len(args) == 2 {
-		resName = args[1]
+
+	name := ""
+	if len(args) == 1 {
+		name = args[0]
 	}
 
-	switch res {
-	case "cluster":
-		return listClusters(cli, resName)
-	case "masterpool":
-		return listMasterPools(cli, clusterName, resName)
-	case "computepool":
-		return listComputePools(cli, clusterName, resName)
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
 	}
-	return nil
+
+	return listMasterPools(cli, clusterName, name)
+}
+
+var getComputePoolCmd = &cobra.Command{
+	Use:          "computepool [NAME]",
+	Aliases:      computePoolCmdAliases,
+	Short:        "Get compute pools",
+	Long:         "Get compute pools",
+	SuggestFor:   []string{"compute", "pool"},
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return getComputePoolCmdFunc(c, args)
+	},
+}
+
+func getComputePoolCmdFunc(c *cobra.Command, args []string) error {
+	clusterName, err := c.Flags().GetString("cluster")
+	if err != nil {
+		return err
+	}
+
+	name := ""
+	if len(args) == 1 {
+		name = args[0]
+	}
+
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
+	}
+
+	return listComputePools(cli, clusterName, name)
 }
 
 func listMasterPools(cli *cli, clusterName, name string) error {
@@ -109,6 +144,15 @@ func listClusters(cli *cli, name string) error {
 }
 
 func init() {
-	RootCmd.AddCommand(getCmd)
-	addClusterFlag(getCmd)
+	getCmd.AddCommand(
+		getClusterCmd,
+		getMasterPoolCmd,
+		getComputePoolCmd,
+	)
+
+	// Add flags that are relevant to different subcommands.
+	addClusterFlag(
+		getMasterPoolCmd,
+		getComputePoolCmd,
+	)
 }

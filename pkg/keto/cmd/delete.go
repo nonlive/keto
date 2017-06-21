@@ -17,81 +17,121 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
-	"strings"
-
-	"github.com/UKHomeOffice/keto/pkg/constants"
-	cmdutil "github.com/UKHomeOffice/keto/pkg/keto/cmd/util"
 
 	"github.com/spf13/cobra"
 )
 
 // deleteCmd represents the create command
 var deleteCmd = &cobra.Command{
-	Use:          "delete <" + strings.Join(constants.ValidResourceTypes, "|") + "> <NAME>",
-	Short:        "Delete a resource",
-	Long:         "Delete a resource",
+	Use:          "delete <subcommand>",
+	Short:        "Delete resources",
 	SuggestFor:   []string{"remove"},
-	ValidArgs:    constants.ValidResourceTypes,
+	SilenceUsage: true,
+}
+
+var deleteClusterCmd = &cobra.Command{
+	Use:          "cluster <NAME>",
+	Aliases:      clusterCmdAliases,
+	Short:        "Delete a cluster",
+	SilenceUsage: true,
+	RunE: func(c *cobra.Command, args []string) error {
+		return deleteClusterCmdFunc(c, args)
+	},
+}
+
+func deleteClusterCmdFunc(c *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("cluster name is not specified")
+	}
+	name := args[0]
+
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
+	}
+	return cli.ctrl.DeleteCluster(name)
+}
+
+var deleteMasterPoolCmd = &cobra.Command{
+	Use:          "masterpool",
+	Aliases:      masterPoolCmdAliases,
+	Short:        "Delete a masterpool",
 	SilenceUsage: true,
 	PreRunE: func(c *cobra.Command, args []string) error {
 		return validateDeleteFlags(c, args)
 	},
 	RunE: func(c *cobra.Command, args []string) error {
-		return runDelete(c, args)
+		return deleteMasterPoolCmdFunc(c, args)
 	},
 }
 
-func validateDeleteFlags(c *cobra.Command, args []string) error {
-	validTypes := "Valid types: " + strings.Join(constants.ValidResourceTypes, ", ")
-
-	if len(args) < 2 {
-		return fmt.Errorf("resource type and or resource name not specified.\n" + validTypes)
-	}
-
-	if !cmdutil.StringInSlice(args[0], constants.ValidResourceTypes) {
-		return fmt.Errorf("invalid resource type.\n" + validTypes)
-	}
-
-	// Check if mandatory flags are set when deleting a computepool or a masterpool.
-	if args[0] == "computepool" || args[0] == "masterpool" {
-		if !c.Flags().Changed("cluster") {
-			return fmt.Errorf("cluster name must be set")
-		}
-	}
-
-	return nil
-}
-
-func runDelete(c *cobra.Command, args []string) error {
-	cli, err := newCLI(c)
+func deleteMasterPoolCmdFunc(c *cobra.Command, args []string) error {
+	clusterName, err := c.Flags().GetString("cluster")
 	if err != nil {
 		return err
 	}
 
-	resType := args[0]
-	resName := args[1]
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
+	}
+	return cli.ctrl.DeleteMasterPool(clusterName)
+}
+
+var deleteComputePoolCmd = &cobra.Command{
+	Use:          "computepool <NAME>",
+	Aliases:      computePoolCmdAliases,
+	Short:        "Delete a computepool",
+	SilenceUsage: true,
+	PreRunE: func(c *cobra.Command, args []string) error {
+		return validateDeleteFlags(c, args)
+	},
+	RunE: func(c *cobra.Command, args []string) error {
+		return deleteComputePoolCmdFunc(c, args)
+	},
+}
+
+func deleteComputePoolCmdFunc(c *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return errors.New("computepool name is not specified")
+	}
+	name := args[0]
 
 	clusterName, err := c.Flags().GetString("cluster")
 	if err != nil {
 		return err
 	}
 
-	switch resType {
-	case "cluster":
-		return cli.ctrl.DeleteCluster(resName)
-	case "masterpool":
-		return cli.ctrl.DeleteMasterPool(clusterName)
-	case "computepool":
-		return cli.ctrl.DeleteComputePool(clusterName, resName)
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
 	}
+	return cli.ctrl.DeleteComputePool(clusterName, name)
+}
 
+func validateDeleteFlags(c *cobra.Command, args []string) error {
+	// Check if cluster name has been set. TODO(vaijab): should controller take
+	// care of validation?
+	if c.Name() == "masterpool" || c.Name() == "computepool" {
+		if !c.Flags().Changed("cluster") {
+			return fmt.Errorf("cluster name must be set")
+		}
+	}
 	return nil
 }
 
 func init() {
-	RootCmd.AddCommand(deleteCmd)
+	deleteCmd.AddCommand(
+		deleteClusterCmd,
+		deleteMasterPoolCmd,
+		deleteComputePoolCmd,
+	)
 
-	// Add flags that are relevant to delete cmd.
-	addClusterFlag(deleteCmd)
+	// Add flags that are relevant to delete subcommands.
+	addClusterFlag(
+		deleteMasterPoolCmd,
+		deleteComputePoolCmd,
+	)
 }

@@ -16,8 +16,3 @@ const (
 	// validation and CoreOS version to cloud image name mapping.
 	DefaultCoreOSVersion = "CoreOS-stable-1353.6.0-hvm"
 )
-
-var (
-	// ValidResourceTypes contains a list of currently supported resource types.
-	ValidResourceTypes = []string{"cluster", "masterpool", "computepool"}
-)

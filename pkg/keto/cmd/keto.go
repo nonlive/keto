@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -30,25 +31,33 @@ import (
 )
 
 var (
-	// RootCmd represents the base command when called without any subcommands
-	RootCmd = &cobra.Command{
+	// errNotImplemented is an error for not implemented features.
+	errNotImplemented = errors.New("not implemented")
+
+	// KetoCmd represents the root command when called without any subcommands
+	KetoCmd = &cobra.Command{
 		Use:   "keto",
 		Short: "Kubernetes clusters manager",
 		Long:  "Kubernetes clusters manager",
 		RunE: func(c *cobra.Command, args []string) error {
 			if c.Flags().Changed("version") {
-				printVersion()
+				versionCmdFunc()
 				return nil
 			}
 			return c.Usage()
 		},
 	}
+
+	// subcommand aliases
+	clusterCmdAliases     = []string{"cl", "clusters"}
+	masterPoolCmdAliases  = []string{"mp", "master", "masters", "masterpools"}
+	computePoolCmdAliases = []string{"cp", "compute", "computes", "computepools"}
 )
 
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := RootCmd.Execute(); err != nil {
+	if err := KetoCmd.Execute(); err != nil {
 		os.Exit(-1)
 	}
 }
@@ -85,71 +94,104 @@ func newCLI(c *cobra.Command) (*cli, error) {
 
 func init() {
 	// Local flags
-	RootCmd.Flags().BoolP("help", "h", false, "Help message")
-	RootCmd.Flags().BoolP("version", "v", false, "Print version")
+	KetoCmd.Flags().BoolP("help", "h", false, "Help message")
+	KetoCmd.Flags().BoolP("version", "v", false, "Print version")
 
 	// Global flags
-	RootCmd.PersistentFlags().String("cloud", "",
+	KetoCmd.PersistentFlags().String("cloud", "",
 		"Cloud provider name. Supported providers: "+strings.Join(cloudprovider.CloudProviders(), ", "))
-	RootCmd.PersistentFlags().String("cloud-config", "", "Cloud provider config file")
+
+	KetoCmd.AddCommand(
+		getCmd,
+		createCmd,
+		deleteCmd,
+		describeCmd,
+		updateCmd,
+		versionCmd,
+	)
 }
 
 // addClusterFlag adds a cluster flag
-func addClusterFlag(c *cobra.Command) {
-	c.Flags().String("cluster", "", "Cluster name")
+func addClusterFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("cluster", "", "Cluster name")
+	}
 }
 
 // addNetworksFlag adds a networks flag
-func addNetworksFlag(c *cobra.Command) {
-	c.Flags().StringSlice("networks", []string{}, "Cloud specific list of comma separated networks")
+func addNetworksFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().StringSlice("networks", []string{}, "Cloud specific list of comma separated networks")
+	}
 }
 
 // addCoreOSVersionFlag adds an OS flag
-func addCoreOSVersionFlag(c *cobra.Command) {
-	c.Flags().String("coreos-version", "", fmt.Sprintf("Operating system (default %q)", constants.DefaultCoreOSVersion))
+func addCoreOSVersionFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("coreos-version", "", fmt.Sprintf("Operating system (default %q)", constants.DefaultCoreOSVersion))
+	}
 }
 
 // addSSHKeyFlag adds an ssh-key flag
-func addSSHKeyFlag(c *cobra.Command) {
-	c.Flags().String("ssh-key", "", "Public SSH key or name (dependent on cloud provider)")
+func addSSHKeyFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("ssh-key", "", "Public SSH key or name (dependent on cloud provider)")
+	}
 }
 
 // addDiskSizeFlag adds a disk-size flag
-func addDiskSizeFlag(c *cobra.Command) {
-	c.Flags().Int("disk-size", 0, fmt.Sprintf("Node boot disk size in GB (default %d)", constants.DefaultDiskSizeInGigabytes))
+func addDiskSizeFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().Int("disk-size", 0, fmt.Sprintf("Node boot disk size in GB (default %d)", constants.DefaultDiskSizeInGigabytes))
+	}
 }
 
 // addMachineTypeFlag adds a machine type flag
-func addMachineTypeFlag(c *cobra.Command) {
-	c.Flags().String("machine-type", "", "Machine type")
+func addMachineTypeFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("machine-type", "", "Machine type")
+	}
 }
 
 // addPoolSizeFlag adds a size flag
-func addPoolSizeFlag(c *cobra.Command) {
-	c.Flags().Int("pool-size", 0,
-		fmt.Sprintf("Number of nodes in the compute pool (default %d)", constants.DefaultComputePoolSize))
+func addPoolSizeFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().Int("pool-size", 0,
+			fmt.Sprintf("Number of nodes in the compute pool (default %d)", constants.DefaultComputePoolSize))
+	}
 }
 
 // addDNSZoneFlag adds a DNS zone flag
-func addDNSZoneFlag(c *cobra.Command) {
-	c.Flags().String("dns-zone", "", "Hosted DNS zone name")
+func addDNSZoneFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("dns-zone", "", "Hosted DNS zone name")
+	}
 }
 
 // addLabelsFlag adds labels flag
-func addLabelsFlag(c *cobra.Command) {
-	c.Flags().StringSlice("labels", []string{}, "List of labels in a comma separated key=value format")
+func addLabelsFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().StringSlice("labels", []string{}, "List of labels in a comma separated key=value format")
+	}
 }
 
 // addKubeVersionFlag adds a kubernetes version flag
-func addKubeVersionFlag(c *cobra.Command) {
-	c.Flags().String("kube-version", constants.DefaultKubeVersion, "Kubernetes version")
+func addKubeVersionFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("kube-version", constants.DefaultKubeVersion, "Kubernetes version")
+	}
 }
 
 // addAssetsDirFlag adds an assets dir flag.
-func addAssetsDirFlag(c *cobra.Command) {
-	c.Flags().String("assets-dir", "", "The path to etcd/kube CA certs and keys")
+func addAssetsDirFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("assets-dir", "", "The path to etcd/kube CA certs and keys")
+	}
 }
 
-func addComputePools(c *cobra.Command) {
-	c.Flags().Int("compute-pools", 1, "Number of compute pools to create")
+// addComputePoolsFlag adds a compute pools flag
+func addComputePoolsFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().Int("compute-pools", 1, "Number of compute pools to create")
+	}
 }
