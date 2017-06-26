@@ -27,10 +27,13 @@ var (
 	providers      = make(map[string]Factory)
 )
 
-// Factory is a function that returns a cloudprovider.Interface. A config
-// parameter provides an io.Reader handler to the factory to load optional
-// cloud config.
-type Factory func() (Interface, error)
+// Factory is a function that returns a cloudprovider.Interface.
+type Factory func(l Logger) (Interface, error)
+
+// Logger is generic logger interface for debug logging.
+type Logger interface {
+	Printf(string, ...interface{})
+}
 
 // Register registers a cloudprovider.Interface by name. This
 // is expected to be called during main startup.
@@ -46,8 +49,9 @@ func Register(name string, cloud Factory) {
 	providers[name] = cloud
 }
 
-// InitCloudProvider creates an instance of the named cloud provider.
-func InitCloudProvider(name string) (Interface, error) {
+// InitCloudProvider creates an instance of the named cloud provider. Logger l
+// need to be passed in at initialization time.
+func InitCloudProvider(name string, l Logger) (Interface, error) {
 	providersMutex.Lock()
 	defer providersMutex.Unlock()
 	f, found := providers[name]
@@ -55,7 +59,7 @@ func InitCloudProvider(name string) (Interface, error) {
 		return nil, fmt.Errorf("unknown cloud provider: %q", name)
 	}
 	// return a cloud-specific Factory result
-	return f()
+	return f(l)
 }
 
 // IsRegistered returns a bool whether a given cloud provider is registered.
