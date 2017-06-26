@@ -30,14 +30,21 @@ type UserDater interface {
 }
 
 // UserData defines a user data struct.
-type UserData struct{}
+type UserData struct {
+	Logger logger
+}
+
+// logger is a generic interface that is used for passing in a logger.
+type logger interface {
+	Printf(string, ...interface{})
+}
 
 // Compile-time check whether UserData type value implements UserDater interface.
 var _ UserDater = (*UserData)(nil)
 
 // New returns a new UserData struct
-func New() *UserData {
-	return &UserData{}
+func New(logger logger) *UserData {
+	return &UserData{Logger: logger}
 }
 
 // RenderMasterCloudConfig renders a master cloud-config.
@@ -334,6 +341,8 @@ write_files:
 		return b.Bytes(), err
 	}
 
+	u.Logger.Printf("cloud-config for masterpool: %s", b.String())
+
 	return b.Bytes(), nil
 }
 
@@ -491,6 +500,8 @@ write_files:
 	if err := t.Execute(&b, data); err != nil {
 		return b.Bytes(), err
 	}
+
+	u.Logger.Printf("cloud-config for computepool: %s", b.String())
 
 	return b.Bytes(), nil
 }

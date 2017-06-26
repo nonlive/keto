@@ -19,6 +19,8 @@ limitations under the License.
 package userdata
 
 import (
+	"log"
+	"os"
 	"testing"
 
 	"github.com/UKHomeOffice/keto/testutil"
@@ -27,7 +29,7 @@ import (
 const clusterName = "foo"
 
 func TestRenderMasterCloudConfig(t *testing.T) {
-	u := New()
+	u := New(log.New(os.Stderr, "", log.LstdFlags))
 	s, err := u.RenderMasterCloudConfig("aws", clusterName, "v1.7.0", map[string]string{"0": "10.0.0.1"})
 	if err != nil {
 		t.Error(err)
@@ -36,7 +38,7 @@ func TestRenderMasterCloudConfig(t *testing.T) {
 }
 
 func TestRenderComputeCloudConfig(t *testing.T) {
-	u := New()
+	u := New(log.New(os.Stderr, "", log.LstdFlags))
 	s, err := u.RenderComputeCloudConfig("aws", clusterName, "v1.7.0")
 	if err != nil {
 		t.Error(err)
