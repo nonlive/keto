@@ -17,6 +17,8 @@ limitations under the License.
 package controller
 
 import (
+	"log"
+	"os"
 	"testing"
 
 	cloudProviderMocks "github.com/UKHomeOffice/keto/pkg/cloudprovider/mocks"
@@ -133,6 +135,10 @@ func makeTestMock() (*testMock, *Controller) {
 	m.Provider.On("Clusters").Return(m.Clusters, true)
 	m.Provider.On("NodePooler").Return(m.NodePooler, true)
 
-	ctrl := New(Config{Cloud: m.Provider, UserData: m.UserData})
+	ctrl := New(Config{
+		Logger:   log.New(os.Stderr, "", log.LstdFlags),
+		Cloud:    m.Provider,
+		UserData: m.UserData,
+	})
 	return m, ctrl
 }
