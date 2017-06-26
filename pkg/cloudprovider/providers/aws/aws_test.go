@@ -21,6 +21,8 @@ limitations under the License.
 package aws
 
 import (
+	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -35,6 +37,10 @@ import (
 
 	"github.com/stretchr/testify/mock"
 )
+
+func makeLogger() *log.Logger {
+	return log.New(os.Stderr, "", log.LstdFlags)
+}
 
 func TestGetVPCIDFromSubnetList(t *testing.T) {
 	testCases := []struct {
@@ -82,8 +88,9 @@ func TestCreateClusterInfra(t *testing.T) {
 	mockCF := &mocks.CloudFormationAPI{}
 	mockEC2 := &mocks.EC2API{}
 	c := &Cloud{
-		cf:  mockCF,
-		ec2: mockEC2,
+		Logger: makeLogger(),
+		cf:     mockCF,
+		ec2:    mockEC2,
 	}
 
 	clusterName := "foo"
@@ -137,7 +144,8 @@ func TestCreateClusterInfra(t *testing.T) {
 func TestGetClusters(t *testing.T) {
 	mockCF := &mocks.CloudFormationAPI{}
 	c := &Cloud{
-		cf: mockCF,
+		Logger: makeLogger(),
+		cf:     mockCF,
 	}
 
 	stacks := []*cloudformation.Stack{
@@ -197,7 +205,8 @@ func TestGetClusters(t *testing.T) {
 func TestDeleteComputePool(t *testing.T) {
 	mockCF := &mocks.CloudFormationAPI{}
 	c := &Cloud{
-		cf: mockCF,
+		Logger: makeLogger(),
+		cf:     mockCF,
 	}
 
 	stacks := []*cloudformation.Stack{
@@ -247,9 +256,10 @@ func TestCreateMasterPool(t *testing.T) {
 	mockEC2 := &mocks.EC2API{}
 	mockELB := &mocks.ELBAPI{}
 	c := &Cloud{
-		cf:  mockCF,
-		ec2: mockEC2,
-		elb: mockELB,
+		Logger: makeLogger(),
+		cf:     mockCF,
+		ec2:    mockEC2,
+		elb:    mockELB,
 	}
 
 	clusterName := "foo"
