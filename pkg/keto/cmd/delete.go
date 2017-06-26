@@ -51,7 +51,13 @@ func deleteClusterCmdFunc(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return cli.ctrl.DeleteCluster(name)
+
+	cli.logger.Printf("Deleting cluster %q", name)
+	if err := cli.ctrl.DeleteCluster(name); err != nil {
+		return err
+	}
+	cli.logger.Printf("Cluster %q successfully deleted", name)
+	return nil
 }
 
 var deleteMasterPoolCmd = &cobra.Command{
@@ -77,7 +83,12 @@ func deleteMasterPoolCmdFunc(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return cli.ctrl.DeleteMasterPool(clusterName)
+	cli.logger.Printf("Deleting masterpool of cluster %q", clusterName)
+	if err := cli.ctrl.DeleteMasterPool(clusterName); err != nil {
+		return err
+	}
+	cli.logger.Printf("Masterpool successfully deleted")
+	return nil
 }
 
 var deleteComputePoolCmd = &cobra.Command{
@@ -108,7 +119,12 @@ func deleteComputePoolCmdFunc(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return cli.ctrl.DeleteComputePool(clusterName, name)
+	cli.logger.Printf("Deleting computepool %q of cluster %q", name, clusterName)
+	if err := cli.ctrl.DeleteComputePool(clusterName, name); err != nil {
+		return err
+	}
+	cli.logger.Printf("Computepool %q successfully deleted", name)
+	return nil
 }
 
 func validateDeleteFlags(c *cobra.Command, args []string) error {

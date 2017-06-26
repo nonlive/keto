@@ -75,6 +75,11 @@ func validateCreateFlags(c *cobra.Command, args []string) error {
 }
 
 func createClusterCmdFunc(c *cobra.Command, args []string) error {
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
+	}
+
 	if len(args) != 1 {
 		return errors.New("cluster name is not specified")
 	}
@@ -90,13 +95,9 @@ func createClusterCmdFunc(c *cobra.Command, args []string) error {
 			return err
 		}
 		assetsDir = d
+		cli.debugLogger.Printf("assets directory is not specified, using %q instead", assetsDir)
 	}
-	a, err := readAssetFiles(assetsDir)
-	if err != nil {
-		return err
-	}
-
-	cli, err := newCLI(c)
+	a, err := cli.readAssetFiles(assetsDir)
 	if err != nil {
 		return err
 	}
@@ -121,12 +122,17 @@ func createClusterCmdFunc(c *cobra.Command, args []string) error {
 		cluster.ComputePools = append(cluster.ComputePools, p)
 	}
 
-	return cli.ctrl.CreateCluster(cluster, a)
+	cli.logger.Printf("Creating cluster %q", cluster.Name)
+	if err := cli.ctrl.CreateCluster(cluster, a); err != nil {
+		return err
+	}
+	cli.logger.Printf("Cluster %q successfully created", cluster.Name)
+	return nil
 }
 
 // readAssetFiles reads asset files as byte arrays from the directory d and returns
 // model.Assets.
-func readAssetFiles(d string) (model.Assets, error) {
+func (c cli) readAssetFiles(d string) (model.Assets, error) {
 	a := model.Assets{}
 	etcdCACertPath := path.Join(d, "etcd_ca.crt")
 	etcdCAKeyPath := path.Join(d, "etcd_ca.key")
@@ -151,6 +157,7 @@ func readAssetFiles(d string) (model.Assets, error) {
 	}
 
 	// Read etcd CA cert.
+	c.debugLogger.Printf("reading assets file %q", etcdCACertPath)
 	etcdCACert, err := ioutil.ReadFile(etcdCACertPath)
 	if err != nil {
 		return a, err
@@ -158,6 +165,7 @@ func readAssetFiles(d string) (model.Assets, error) {
 	a.EtcdCACert = etcdCACert
 
 	// Read etcd CA key.
+	c.debugLogger.Printf("reading assets file %q", etcdCAKeyPath)
 	etcdCAKey, err := ioutil.ReadFile(etcdCAKeyPath)
 	if err != nil {
 		return a, err
@@ -165,6 +173,7 @@ func readAssetFiles(d string) (model.Assets, error) {
 	a.EtcdCAKey = etcdCAKey
 
 	// Read kube CA cert.
+	c.debugLogger.Printf("reading assets file %q", kubeCACertPath)
 	kubeCACert, err := ioutil.ReadFile(kubeCACertPath)
 	if err != nil {
 		return a, err
@@ -172,6 +181,7 @@ func readAssetFiles(d string) (model.Assets, error) {
 	a.KubeCACert = kubeCACert
 
 	// Read kube CA key.
+	c.debugLogger.Printf("reading assets file %q", kubeCAKeyPath)
 	kubeCAKey, err := ioutil.ReadFile(kubeCAKeyPath)
 	if err != nil {
 		return a, err
@@ -221,7 +231,12 @@ func createMasterPoolCmdFunc(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return cli.ctrl.CreateMasterPool(p)
+	cli.logger.Printf("Creating masterpool %q for cluster %q", p.Name, p.ClusterName)
+	if err := cli.ctrl.CreateMasterPool(p); err != nil {
+		return err
+	}
+	cli.logger.Printf("Masterpool %q successfully created", p.Name)
+	return nil
 }
 
 func makeMasterPool(name, clusterName string, c cobra.Command) (model.MasterPool, error) {
@@ -296,7 +311,12 @@ func createComputePoolCmdFunc(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return cli.ctrl.CreateComputePool(p)
+	cli.logger.Printf("Creating computepool %q for cluster %q", p.Name, p.ClusterName)
+	if err := cli.ctrl.CreateComputePool(p); err != nil {
+		return err
+	}
+	cli.logger.Printf("Masterpool %q successfully created", p.Name)
+	return nil
 }
 
 func makeComputePool(name, clusterName string, c cobra.Command) (model.ComputePool, error) {
