@@ -43,6 +43,7 @@ const (
 	machineTypeTagKey      = "machine-type"
 	diskSizeTagKey         = "disk-size"
 	assetsBucketNameTagKey = "assets-bucket-name"
+	internalClusterTagKey  = "internal-cluster"
 
 	clusterInfraStackType = "infra"
 	elbStackType          = "elb"
@@ -64,6 +65,7 @@ var (
 		kubeAPIURLTagKey,
 		coreOSVersionTagKey,
 		assetsBucketNameTagKey,
+		internalClusterTagKey,
 	}
 )
 
@@ -175,17 +177,17 @@ func isStackManaged(s *cloudformation.Stack) bool {
 	return false
 }
 
-func (c *Cloud) createClusterInfraStack(clusterName, vpcID string, subnets []*ec2.Subnet) error {
+func (c *Cloud) createClusterInfraStack(cluster model.Cluster, vpcID string, subnets []*ec2.Subnet) error {
 	networks := getNodesDistributionAcrossNetworks(subnets)
 
-	templateBody, err := renderClusterInfraStackTemplate(clusterName, vpcID, networks)
+	templateBody, err := renderClusterInfraStackTemplate(cluster.Name, vpcID, networks)
 	if err != nil {
 		return err
 	}
 
 	stack := &cloudformation.CreateStackInput{
-		StackName:    aws.String(makeClusterInfraStackName(clusterName)),
-		Tags:         makeStackTags(clusterName, clusterInfraStackType, "", "", "", "", "", "", 0),
+		StackName:    aws.String(makeClusterInfraStackName(cluster.Name)),
+		Tags:         makeStackTags(cluster.Name, clusterInfraStackType, "", "", "", "", "", "", 0, cluster.Internal),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -272,7 +274,7 @@ func (c *Cloud) createMasterPoolStack(
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
 		Tags: makeStackTags(p.ClusterName, masterPoolStackType, p.Name, p.KubeVersion, p.CoreOSVersion,
-			p.MachineType, kubeAPIURL, assetsBucketName, p.DiskSize),
+			p.MachineType, kubeAPIURL, assetsBucketName, p.DiskSize, p.Internal),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -308,7 +310,7 @@ func (c *Cloud) createELBStack(p model.MasterPool, vpcID, infraStackName string)
 	}
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeELBStackName(p.ClusterName)),
-		Tags:         makeStackTags(p.ClusterName, elbStackType, "", "", "", "", "", "", 0),
+		Tags:         makeStackTags(p.ClusterName, elbStackType, "", "", "", "", "", "", 0, p.Internal),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -331,7 +333,7 @@ func (c *Cloud) createComputePoolStack(p model.ComputePool, infraStackName strin
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
 		Tags: makeStackTags(p.ClusterName, computePoolStackType, p.Name, p.KubeVersion, p.CoreOSVersion,
-			p.MachineType, kubeAPIURL, "", p.DiskSize),
+			p.MachineType, kubeAPIURL, "", p.DiskSize, p.Internal),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -358,6 +360,7 @@ func makeStackTags(
 	kubeAPIURL string,
 	assetsBucketName string,
 	diskSize int,
+	internal bool,
 ) []*cloudformation.Tag {
 	tags := []*cloudformation.Tag{
 		{
@@ -371,6 +374,10 @@ func makeStackTags(
 		{
 			Key:   aws.String(stackTypeTagKey),
 			Value: aws.String(stackType),
+		},
+		{
+			Key:   aws.String(internalClusterTagKey),
+			Value: aws.String(strconv.FormatBool(internal)),
 		},
 	}
 

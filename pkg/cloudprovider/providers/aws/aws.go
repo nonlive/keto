@@ -105,9 +105,12 @@ func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
 	}
 	c.Logger.Printf("found %q VPC ID", vpcID)
 
-	if err := c.createClusterInfraStack(cluster.Name, vpcID, subnets); err != nil {
+	if err := c.createClusterInfraStack(cluster, vpcID, subnets); err != nil {
 		return err
 	}
+
+	// ELB scheme is determined via Masterpool.Internal
+	cluster.MasterPool.Internal = cluster.Internal
 
 	return c.createLoadBalancer(cluster.MasterPool)
 }
@@ -135,10 +138,26 @@ outer:
 			}
 		}
 
+		c.Internal = clusterInternal(s.Tags)
 		c.Labels = getStackLabels(s)
 		clusters = append(clusters, c)
 	}
 	return clusters, nil
+}
+
+// clusterInternal checks whether a given list of tags contains a
+// internalClusterTagKey and returns its value as a bool.
+func clusterInternal(tags []*cloudformation.Tag) bool {
+	for _, tag := range tags {
+		if *tag.Key == internalClusterTagKey && tag.Value != nil {
+			internal, err := strconv.ParseBool(*tag.Value)
+			if err != nil {
+				return false
+			}
+			return internal
+		}
+	}
+	return false
 }
 
 // DescribeCluster describes a given cluster.
