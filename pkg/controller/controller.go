@@ -35,6 +35,8 @@ var (
 	ErrClusterDoesNotExist = errors.New("cluster does not exist")
 	// ErrMasterPoolAlreadyExists is an error to report an existing master pool.
 	ErrMasterPoolAlreadyExists = errors.New("masterpool already exists")
+	// ErrComputePoolAlreadyExists is an error to report an existing compute pool.
+	ErrComputePoolAlreadyExists = errors.New("computepool already exists")
 )
 
 // Controller represents a controller.
@@ -44,8 +46,14 @@ type Controller struct {
 
 // Config represents a controller configuration.
 type Config struct {
+	Logger   logger
 	Cloud    cloudprovider.Interface
 	UserData userdata.UserDater
+}
+
+// logger is a generic interface that is used for passing in a logger.
+type logger interface {
+	Printf(string, ...interface{})
 }
 
 // Validate validates controller configuration.
@@ -70,6 +78,7 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 		return ErrNotImplemented
 	}
 
+	c.Logger.Printf("checking whether cluster %q already exists", cluster.Name)
 	exists, err := c.clusterExists(cluster.Name, cl)
 	if err != nil {
 		return err
@@ -77,15 +86,19 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 	if exists {
 		return ErrClusterAlreadyExists
 	}
+	c.Logger.Printf("cluster %q does not exist", cluster.Name)
 
+	c.Logger.Printf("creating cluster %q infrastructure", cluster.Name)
 	if err := cl.CreateClusterInfra(cluster); err != nil {
 		return err
 	}
 
+	c.Logger.Printf("pushing cluster %q assets", cluster.Name)
 	if err := cl.PushAssets(cluster.Name, assets); err != nil {
 		return err
 	}
 
+	c.Logger.Printf("creating masterpool %q in cluster %q", cluster.MasterPool.Name, cluster.Name)
 	if err := c.CreateMasterPool(cluster.MasterPool); err != nil {
 		return err
 	}
@@ -93,6 +106,7 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 	// A user may decide not to create a compute pool during a cluster creation.
 	if len(cluster.ComputePools) > 0 {
 		for i := 0; i < len(cluster.ComputePools); i++ {
+			c.Logger.Printf("creating computepool %q in cluster %q", cluster.ComputePools[i].Name, cluster.Name)
 			if err := c.CreateComputePool(cluster.ComputePools[i]); err != nil {
 				return err
 			}
@@ -117,6 +131,7 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 		return ErrClusterDoesNotExist
 	}
 
+	c.Logger.Printf("checking whether masterpool %q already exists in cluster %q", p.Name, p.ClusterName)
 	m, err := c.GetMasterPools(p.ClusterName, "")
 	if err != nil {
 		return err
@@ -124,26 +139,33 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	if len(m) != 0 {
 		return ErrMasterPoolAlreadyExists
 	}
+	c.Logger.Printf("masterpool %q does not exist in cluster %q", p.Name, p.ClusterName)
 
 	// Use defaults if values aren't specified.
 	if p.DiskSize == 0 {
 		p.DiskSize = constants.DefaultDiskSizeInGigabytes
+		c.Logger.Printf("disk size is not specified, using default %d", p.DiskSize)
 	}
 	if p.KubeVersion == "" {
 		p.KubeVersion = constants.DefaultKubeVersion
+		c.Logger.Printf("kube version is not specified, using default %q", p.KubeVersion)
 	}
 	if p.CoreOSVersion == "" {
 		p.CoreOSVersion = constants.DefaultCoreOSVersion
+		c.Logger.Printf("coreos version is not specified, using default %q", p.CoreOSVersion)
 	}
 
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
 		return ErrNotImplemented
 	}
+
+	c.Logger.Printf("getting master persistent IP addresses and their IDs for cluster %q", p.ClusterName)
 	ips, err := cl.GetMasterPersistentIPs(p.ClusterName)
 	if err != nil {
 		return err
 	}
+	c.Logger.Printf("got IPs and IDs: %#v", ips)
 
 	cloudConfig, err := c.UserData.RenderMasterCloudConfig(c.Cloud.ProviderName(), p.ClusterName, p.KubeVersion, ips)
 	if err != nil {
@@ -180,20 +202,24 @@ func (c *Controller) CreateComputePool(p model.ComputePool) error {
 	}
 
 	// Check if a compute pool with the same name exists already.
+	c.Logger.Printf("checking whether computepool %q already exists in cluster %q", p.Name, p.ClusterName)
 	computeExists, err := c.computePoolExists(p.ClusterName, p.Name, pooler)
 	if err != nil {
 		return err
 	}
 	if computeExists {
-		return fmt.Errorf("compute pool %q already exists in cluster %q", p.Name, p.ClusterName)
+		return ErrComputePoolAlreadyExists
 	}
+	c.Logger.Printf("computepool %q does not exist in cluster %q", p.Name, p.ClusterName)
 
 	// Use defaults if values aren't specified.
 	if p.DiskSize == 0 {
 		p.DiskSize = constants.DefaultDiskSizeInGigabytes
+		c.Logger.Printf("disk size is not specified, using default %d", p.DiskSize)
 	}
 	if p.Size == 0 {
 		p.Size = constants.DefaultComputePoolSize
+		c.Logger.Printf("compute pool size is not specified, using default %d", p.Size)
 	}
 
 	// TODO get the missing properties from the masterpool. If not specified,
@@ -202,9 +228,11 @@ func (c *Controller) CreateComputePool(p model.ComputePool) error {
 	// keto defaults instead?
 	if p.KubeVersion == "" {
 		p.KubeVersion = constants.DefaultKubeVersion
+		c.Logger.Printf("kube version is not specified, using default %q", p.KubeVersion)
 	}
 	if p.CoreOSVersion == "" {
 		p.CoreOSVersion = constants.DefaultCoreOSVersion
+		c.Logger.Printf("coreos version is not specified, using default %q", p.CoreOSVersion)
 	}
 
 	cloudConfig, err := c.UserData.RenderComputeCloudConfig(c.Cloud.ProviderName(), p.ClusterName, p.KubeVersion)
@@ -231,6 +259,7 @@ func (c *Controller) GetMasterPools(clusterName, name string) ([]*model.MasterPo
 		return []*model.MasterPool{}, ErrNotImplemented
 	}
 
+	c.Logger.Printf("getting masterpool in cluster %q", clusterName)
 	pools, err := pooler.GetMasterPools(clusterName, name)
 	if err != nil {
 		return []*model.MasterPool{}, err
@@ -245,6 +274,7 @@ func (c *Controller) GetComputePools(clusterName, name string) ([]*model.Compute
 		return []*model.ComputePool{}, ErrNotImplemented
 	}
 
+	c.Logger.Printf("getting computepool in cluster %q", clusterName)
 	pools, err := pooler.GetComputePools(clusterName, name)
 	if err != nil {
 		return []*model.ComputePool{}, err
@@ -258,6 +288,7 @@ func (c *Controller) GetClusters(name string) ([]*model.Cluster, error) {
 	if !impl {
 		return []*model.Cluster{}, ErrNotImplemented
 	}
+	c.Logger.Printf("getting clusters")
 	return cl.GetClusters(name)
 }
 
@@ -268,6 +299,7 @@ func (c *Controller) DeleteCluster(name string) error {
 		return ErrNotImplemented
 	}
 
+	c.Logger.Printf("deleting cluster %q", name)
 	return cl.DeleteCluster(name)
 }
 
@@ -278,6 +310,7 @@ func (c *Controller) DeleteMasterPool(clusterName string) error {
 		return ErrNotImplemented
 	}
 
+	c.Logger.Printf("deleting masterpool of cluster %q", clusterName)
 	return pooler.DeleteMasterPool(clusterName)
 }
 
@@ -288,5 +321,6 @@ func (c *Controller) DeleteComputePool(clusterName, name string) error {
 		return ErrNotImplemented
 	}
 
+	c.Logger.Printf("deleting computepool %q of cluster %q", name, clusterName)
 	return pooler.DeleteComputePool(clusterName, name)
 }

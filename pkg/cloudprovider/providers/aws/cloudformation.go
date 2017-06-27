@@ -240,7 +240,6 @@ func getNodesDistributionAcrossNetworks(subnets []*ec2.Subnet) []nodesNetwork {
 		n := dist[0]
 		n.NodeID = total
 		dist = append(dist, n)
-		total++
 	}
 	return dist
 }

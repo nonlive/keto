@@ -19,6 +19,8 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
@@ -64,7 +66,9 @@ func Execute() {
 
 // cli respresents keto cli client.
 type cli struct {
-	ctrl *controller.Controller
+	logger      *log.Logger
+	debugLogger *log.Logger
+	ctrl        *controller.Controller
 }
 
 // newCLI returns a new instance of cli. It is expected to be used by
@@ -73,23 +77,40 @@ func newCLI(c *cobra.Command) (*cli, error) {
 	if !c.Flags().Changed("cloud") {
 		return &cli{}, fmt.Errorf("cloud provider name is not specified")
 	}
+
+	logger := log.New(os.Stdout, "", 0)
+	debugLogger := log.New(os.Stderr, "[debug] ", log.Ldate|log.Ltime|log.Lshortfile)
+	debug, err := c.Flags().GetBool("debug")
+	if err != nil {
+		return &cli{}, err
+	}
+	if !debug {
+		debugLogger.SetOutput(ioutil.Discard)
+	}
+
 	cloudName, err := c.Flags().GetString("cloud")
 	if err != nil {
 		return &cli{}, err
 	}
 
-	cloud, err := cloudprovider.InitCloudProvider(cloudName)
+	cloud, err := cloudprovider.InitCloudProvider(cloudName, debugLogger)
 	if err != nil {
 		return &cli{}, err
 	}
-	ud := userdata.New()
+
+	ud := userdata.New(debugLogger)
 	ctrl := controller.New(
 		controller.Config{
+			Logger:   debugLogger,
 			Cloud:    cloud,
 			UserData: ud,
 		})
 
-	return &cli{ctrl: ctrl}, nil
+	return &cli{
+		logger:      logger,
+		debugLogger: debugLogger,
+		ctrl:        ctrl,
+	}, nil
 }
 
 func init() {
@@ -100,6 +121,8 @@ func init() {
 	// Global flags
 	KetoCmd.PersistentFlags().String("cloud", "",
 		"Cloud provider name. Supported providers: "+strings.Join(cloudprovider.CloudProviders(), ", "))
+	// TODO: set default to false once we're happy with the tool.
+	KetoCmd.PersistentFlags().Bool("debug", true, "Enable debug logging")
 
 	KetoCmd.AddCommand(
 		getCmd,

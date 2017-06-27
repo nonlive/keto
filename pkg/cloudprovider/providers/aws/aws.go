@@ -70,10 +70,11 @@ var (
 
 // Cloud is an implementation of cloudprovider.Interface.
 type Cloud struct {
-	cf  cloudformationiface.CloudFormationAPI
-	ec2 ec2iface.EC2API
-	elb elbiface.ELBAPI
-	s3  s3iface.S3API
+	Logger cloudprovider.Logger
+	cf     cloudformationiface.CloudFormationAPI
+	ec2    ec2iface.EC2API
+	elb    elbiface.ELBAPI
+	s3     s3iface.S3API
 }
 
 // Compile-time check whether Cloud type value implements
@@ -97,10 +98,12 @@ func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
 	if err != nil {
 		return err
 	}
+	c.Logger.Printf("getting VPC ID from a list of subnets %v", cluster.MasterPool.Networks)
 	vpcID, err := getVpcIDFromSubnetList(subnets)
 	if err != nil {
 		return err
 	}
+	c.Logger.Printf("found %q VPC ID", vpcID)
 
 	if err := c.createClusterInfraStack(cluster.Name, vpcID, subnets); err != nil {
 		return err
@@ -186,13 +189,17 @@ func (c Cloud) getELBName(clusterName string) (string, error) {
 
 // DeleteCluster deletes a cluster.
 func (c *Cloud) DeleteCluster(name string) error {
+	c.Logger.Printf("deleting compute pools that belong to cluster %q", name)
 	if err := c.DeleteComputePool(name, ""); err != nil {
 		return err
 	}
+
+	c.Logger.Printf("deleting master pool that belongs to cluster %q", name)
 	if err := c.DeleteMasterPool(name); err != nil {
 		return err
 	}
 
+	c.Logger.Printf("deleting ELB stack that belongs to cluster %q", name)
 	if err := c.deleteStack(makeELBStackName(name)); err != nil {
 		return err
 	}
@@ -231,6 +238,8 @@ func (c Cloud) deleteS3Objects(b string, keys []string) error {
 			Quiet:   aws.Bool(true),
 		},
 	}
+
+	c.Logger.Printf("deleting objects %v from S3 bucket %q", keys, b)
 	_, err := c.s3.DeleteObjects(params)
 	return err
 }
@@ -241,6 +250,7 @@ func (c Cloud) getS3Object(bucket, objectName string) ([]byte, error) {
 		Key:    aws.String(objectName),
 	}
 
+	c.Logger.Printf("fetching object %q from S3 bucket %q", objectName, bucket)
 	resp, err := c.s3.GetObject(params)
 	if err != nil {
 		return []byte{}, err
@@ -667,12 +677,17 @@ func (c *Cloud) describeSubnets(subnetIDs []string) ([]*ec2.Subnet, error) {
 		sp = append(sp, aws.String(s))
 	}
 
+	c.Logger.Printf("describing a list of subnets %v", subnetIDs)
 	subnets := []*ec2.Subnet{}
 	resp, err := c.ec2.DescribeSubnets(&ec2.DescribeSubnetsInput{SubnetIds: sp})
 	if err != nil {
 		return subnets, err
 	}
-	return append(subnets, resp.Subnets...), nil
+
+	subnets = append(subnets, resp.Subnets...)
+	c.Logger.Printf("received subnets description: %+v", subnets)
+
+	return subnets, nil
 }
 
 // getAMIByName returns AMI ID for a given AMI name.
@@ -714,12 +729,14 @@ func (c Cloud) getResourceTagValue(resourceID, key string) (string, error) {
 		},
 	}
 
+	c.Logger.Printf("getting tag %q value of resource %q", key, resourceID)
 	resp, err := c.ec2.DescribeTags(params)
 	if err != nil {
 		return "", err
 	}
 	for _, t := range resp.Tags {
 		if *t.Key == key {
+			c.Logger.Printf("got %q as value of the tag %q", *t.Value, *t.Key)
 			return *t.Value, nil
 		}
 	}
@@ -729,7 +746,7 @@ func (c Cloud) getResourceTagValue(resourceID, key string) (string, error) {
 // init registers AWS cloud with the cloudprovider.
 func init() {
 	// f knows how to initialize the cloud
-	f := func() (cloudprovider.Interface, error) {
+	f := func(l cloudprovider.Logger) (cloudprovider.Interface, error) {
 		sess := session.Must(session.NewSessionWithOptions(session.Options{
 			SharedConfigState:       session.SharedConfigEnable,
 			AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
@@ -747,18 +764,19 @@ func init() {
 			sess.Config.Region = &r
 		}
 
-		return newCloud(sess)
+		return newCloud(sess, l)
 	}
 	cloudprovider.Register(ProviderName, f)
 }
 
 // newCloud creates a new instance of AWS Cloud given sess session.
-func newCloud(sess *session.Session) (*Cloud, error) {
+func newCloud(sess *session.Session, l cloudprovider.Logger) (*Cloud, error) {
 	c := &Cloud{
-		cf:  cloudformation.New(sess),
-		ec2: ec2.New(sess),
-		elb: elb.New(sess),
-		s3:  s3.New(sess),
+		Logger: l,
+		cf:     cloudformation.New(sess),
+		ec2:    ec2.New(sess),
+		elb:    elb.New(sess),
+		s3:     s3.New(sess),
 	}
 	return c, nil
 }
