@@ -104,6 +104,15 @@ func createClusterCmdFunc(c *cobra.Command, args []string) error {
 
 	cluster := model.Cluster{}
 	cluster.Name = name
+
+	// Let controller ensure node pools are marked internal or external
+	// depending on cluster.Internal flag.
+	internal, err := c.Flags().GetBool("internal")
+	if err != nil {
+		return err
+	}
+	cluster.Internal = internal
+
 	p, err := makeMasterPool("master", name, *c)
 	if err != nil {
 		return err
@@ -374,6 +383,10 @@ func init() {
 	addClusterFlag(
 		createMasterPoolCmd,
 		createComputePoolCmd,
+	)
+
+	addInternalFlag(
+		createClusterCmd,
 	)
 
 	addNetworksFlag(
