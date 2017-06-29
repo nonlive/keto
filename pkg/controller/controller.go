@@ -88,6 +88,12 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 	}
 	c.Logger.Printf("cluster %q does not exist", cluster.Name)
 
+	// Both internal and external pools aren't supported at the same time.
+	// See https://github.com/UKHomeOffice/keto/issues/71
+	if cluster.Internal {
+		c.Logger.Printf("cluster is internal, node pools will also be internal")
+	}
+
 	c.Logger.Printf("creating cluster %q infrastructure", cluster.Name)
 	if err := cl.CreateClusterInfra(cluster); err != nil {
 		return err
@@ -116,20 +122,24 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 	return nil
 }
 
-// CreateMasterPool create a master node pool.
+// CreateMasterPool creates a master node pool.
 func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
 		return ErrNotImplemented
 	}
 
-	exists, err := c.clusterExists(p.ClusterName, cl)
+	clusters, err := c.GetClusters(p.ClusterName)
 	if err != nil {
 		return err
 	}
-	if !exists {
+	if len(clusters) != 1 {
 		return ErrClusterDoesNotExist
 	}
+	if len(clusters) > 1 {
+		return fmt.Errorf("more than one cluster found matching %q name", p.ClusterName)
+	}
+	p.Internal = clusters[0].Internal
 
 	c.Logger.Printf("checking whether masterpool %q already exists in cluster %q", p.Name, p.ClusterName)
 	m, err := c.GetMasterPools(p.ClusterName, "")
@@ -186,20 +196,22 @@ func (c *Controller) clusterExists(name string, cl cloudprovider.Clusters) (bool
 
 // CreateComputePool create a compute node pool.
 func (c *Controller) CreateComputePool(p model.ComputePool) error {
-	cl, impl := c.Cloud.Clusters()
-	if !impl {
-		return ErrNotImplemented
-	}
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
 		return ErrNotImplemented
 	}
 
-	// TODO Check if a masterpool for given cluster exists first? Maybe we
-	// don't care if masterpool does not exist yet, as long as the cluster infra exists?
-	if exists, err := c.clusterExists(p.ClusterName, cl); !exists {
+	clusters, err := c.GetClusters(p.ClusterName)
+	if err != nil {
 		return err
 	}
+	if len(clusters) != 1 {
+		return ErrClusterDoesNotExist
+	}
+	if len(clusters) > 1 {
+		return fmt.Errorf("more than one cluster found matching %q name", p.ClusterName)
+	}
+	p.Internal = clusters[0].Internal
 
 	// Check if a compute pool with the same name exists already.
 	c.Logger.Printf("checking whether computepool %q already exists in cluster %q", p.Name, p.ClusterName)

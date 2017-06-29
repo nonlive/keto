@@ -26,8 +26,7 @@ type Assets struct {
 
 // Cluster is a representation of a single cluster.
 type Cluster struct {
-	Name string
-	Labels
+	ResourceMeta
 	MasterPool   MasterPool
 	ComputePools []ComputePool
 	Status
@@ -72,6 +71,7 @@ type ResourceMeta struct {
 	ID          string `json:"id,omitempty"`
 	ClusterName string `json:"cluster_name,omitempty"`
 	Labels      `json:"labels,omitempty"`
+	Internal    bool `json:"internal,omitempty"`
 }
 
 // Status is the observed status of a resource.

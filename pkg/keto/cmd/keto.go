@@ -141,6 +141,13 @@ func addClusterFlag(c ...*cobra.Command) {
 	}
 }
 
+// addInternalFlag adds an internal flag
+func addInternalFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().Bool("internal", false, "Create an internal cluster")
+	}
+}
+
 // addNetworksFlag adds a networks flag
 func addNetworksFlag(c ...*cobra.Command) {
 	for _, i := range c {

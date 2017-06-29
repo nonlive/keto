@@ -43,8 +43,8 @@ func TestCreateCluster(t *testing.T) {
 
 	persistentIPs := map[string]string{"node0": "1.1.1.1"}
 	cluster := model.Cluster{
-		Name:       "foo",
-		MasterPool: model.MasterPool{NodePool: testutil.MakeNodePool("foo", "master")},
+		ResourceMeta: model.ResourceMeta{Name: "foo"},
+		MasterPool:   model.MasterPool{NodePool: testutil.MakeNodePool("foo", "master")},
 	}
 
 	m.Clusters.On("GetClusters", cluster.Name).Return([]*model.Cluster{}, nil).Once()
@@ -80,8 +80,8 @@ func TestCreateClusterAlreadyExists(t *testing.T) {
 	m, ctrl := makeTestMock()
 
 	cluster := model.Cluster{
-		Name:       "foo",
-		MasterPool: model.MasterPool{NodePool: testutil.MakeNodePool("foo", "master")},
+		ResourceMeta: model.ResourceMeta{Name: "foo"},
+		MasterPool:   model.MasterPool{NodePool: testutil.MakeNodePool("foo", "master")},
 	}
 
 	m.Clusters.On("GetClusters", cluster.Name).Return([]*model.Cluster{&cluster}, nil).Once()
@@ -101,7 +101,7 @@ func TestCreateMasterPoolAlreadyExists(t *testing.T) {
 		NodePool: testutil.MakeNodePool(clusterName, "master"),
 	}
 
-	m.Clusters.On("GetClusters", clusterName).Return([]*model.Cluster{&model.Cluster{Name: clusterName}}, nil).Once()
+	m.Clusters.On("GetClusters", clusterName).Return([]*model.Cluster{&model.Cluster{ResourceMeta: model.ResourceMeta{Name: clusterName}}}, nil).Once()
 	m.NodePooler.On("GetMasterPools", clusterName, "").Return([]*model.MasterPool{&p}, nil)
 
 	if err := ctrl.CreateMasterPool(p); err != ErrMasterPoolAlreadyExists {

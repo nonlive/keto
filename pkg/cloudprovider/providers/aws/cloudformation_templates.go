@@ -257,6 +257,7 @@ Resources:
           InstanceProtocol: TCP
       ConnectionSettings:
         IdleTimeout: 600
+      Scheme: {{ if .Internal }}"internal"{{ else }}"internet-facing"{{ end }}
 
 Outputs:
   ELB:
@@ -272,11 +273,13 @@ Outputs:
 		Networks              []string
 		VpcID                 string
 		ClusterInfraStackName string
+		Internal              bool
 	}{
 		ClusterName: p.ClusterName,
 		Networks:    p.Networks,
 		VpcID:       vpcID,
 		ClusterInfraStackName: clusterInfraStackName,
+		Internal:              p.Internal,
 	}
 
 	t := template.Must(template.New("elb-stack").Parse(elbStackTemplate))
@@ -412,7 +415,7 @@ Resources:
   LaunchConfiguration{{ rmdash $subnet }}:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      AssociatePublicIpAddress: true
+      AssociatePublicIpAddress: {{ if $masterNodePool.Internal }}false{{ else }}true{{ end }}
       IamInstanceProfile: !Ref InstanceProfile
       ImageId: "{{ $amiID }}"
       InstanceMonitoring: false
@@ -537,7 +540,7 @@ Resources:
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      AssociatePublicIpAddress: true
+      AssociatePublicIpAddress: {{ if .ComputeNodePool.Internal }}false{{ else }}true{{ end }}
       IamInstanceProfile: !Ref InstanceProfile
       ImageId: "{{ .AmiID }}"
       InstanceMonitoring: false

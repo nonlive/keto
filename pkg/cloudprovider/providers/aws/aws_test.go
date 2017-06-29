@@ -97,8 +97,8 @@ func TestCreateClusterInfra(t *testing.T) {
 	p := model.MasterPool{NodePool: testutil.MakeNodePool(clusterName, "master")}
 	p.Networks = []string{"network0", "network1"}
 	cluster := model.Cluster{
-		Name:       clusterName,
-		MasterPool: p,
+		ResourceMeta: model.ResourceMeta{Name: clusterName},
+		MasterPool:   p,
 	}
 
 	returnSubnetsFunc := func() *ec2.DescribeSubnetsOutput {
@@ -164,6 +164,10 @@ func TestGetClusters(t *testing.T) {
 					Key:   aws.String(stackTypeTagKey),
 					Value: aws.String(clusterInfraStackType),
 				},
+				{
+					Key:   aws.String(internalClusterTagKey),
+					Value: aws.String("true"),
+				},
 			},
 		},
 		{
@@ -197,6 +201,9 @@ func TestGetClusters(t *testing.T) {
 	}
 	if res[0].Name != "foo" {
 		t.Errorf("got wrong cluster %q", res[0].Name)
+	}
+	if !res[0].Internal {
+		t.Errorf("failed to read cluster Internal flag, got %v; want %v", res[0].Internal, true)
 	}
 
 	mockCF.AssertExpectations(t)
