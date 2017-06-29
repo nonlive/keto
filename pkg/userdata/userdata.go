@@ -323,12 +323,12 @@ coreos:
       Documentation=https://github.com/UKHomeOffice/keto-k8
 
       [Service]
+      Type=simple
       EnvironmentFile=/etc/environment
 
       # Generate / check keto-token env (only needed until we update keto-tokens)...
       ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes
-      ExecStartPre=/usr/bin/touch /etc/kubernetes/keto-token.env
-      ExecStartPre=/usr/bin/docker run \
+      ExecStart=/usr/bin/docker run \
         --rm \
         --net host \
         -v /etc/kubernetes/:/etc/kubernetes/ \
@@ -338,7 +338,18 @@ coreos:
         setup-compute \
         --cloud-provider={{ .CloudProviderName }}
 
+  - name: keto-tokens.service
+    command: start
+    enable: true
+    content: |
+      [Unit]
+      Description=keto-tokens
+      Documentation=https://github.com/UKHomeOffice/keto-tokens
+
+      [Service]
+      Type=simple
       EnvironmentFile=/etc/kubernetes/keto-token.env
+
       ExecStartPre=/usr/bin/docker run \
         --rm \
         --net host \
@@ -356,11 +367,6 @@ coreos:
       RestartSec=10
 
 write_files:
-- path: /etc/kubernetes/keto-token.env
-  permissions: "0600"
-  owner: root
-  content: |
-    # Replaced by keto-k8
 - path: /etc/kubernetes/cloud-config
   permissions: "0600"
   owner: root
