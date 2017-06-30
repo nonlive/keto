@@ -54,14 +54,16 @@ func TestRenderClusterInfraStackTemplate(t *testing.T) {
 }
 
 func TestRenderELBStackTemplate(t *testing.T) {
-	pool := model.MasterPool{
-		NodePool: model.NodePool{
-			ResourceMeta: model.ResourceMeta{ClusterName: "foo"},
-			NodePoolSpec: model.NodePoolSpec{Networks: []string{"network0", "network1"}},
+	c := model.Cluster{
+		MasterPool: model.MasterPool{
+			NodePool: model.NodePool{
+				ResourceMeta: model.ResourceMeta{ClusterName: "foo"},
+				NodePoolSpec: model.NodePoolSpec{Networks: []string{"network0", "network1"}},
+			},
 		},
 	}
 
-	s, err := renderELBStackTemplate(pool, vpc, "infra-foo-stack")
+	s, err := renderELBStackTemplate(c, vpc, "infra-foo-stack")
 	if err != nil {
 		t.Error(err)
 	}
