@@ -29,6 +29,7 @@ type Cluster struct {
 	ResourceMeta
 	MasterPool   MasterPool
 	ComputePools []ComputePool
+	DNSZone      string
 	Status
 }
 

@@ -113,6 +113,13 @@ func createClusterCmdFunc(c *cobra.Command, args []string) error {
 	}
 	cluster.Internal = internal
 
+	// DNSZone is not required.
+	dnsZone, err := c.Flags().GetString("dns-zone")
+	if err != nil {
+		return err
+	}
+	cluster.DNSZone = dnsZone
+
 	p, err := makeMasterPool("master", name, *c)
 	if err != nil {
 		return err

@@ -17,6 +17,7 @@ limitations under the License.
 //go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface -name=CloudFormationAPI
 //go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/ec2/ec2iface -name=EC2API
 //go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/elb/elbiface -name=ELBAPI
+//go:generate mockery -dir $GOPATH/src/github.com/UKHomeOffice/keto/vendor/github.com/aws/aws-sdk-go/service/route53/route53iface -name=Route53API
 
 package aws
 
@@ -33,7 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/elb"
+	"github.com/aws/aws-sdk-go/service/route53"
 
 	"github.com/stretchr/testify/mock"
 )
@@ -87,10 +88,12 @@ func TestGetVPCIDFromSubnetList(t *testing.T) {
 func TestCreateClusterInfra(t *testing.T) {
 	mockCF := &mocks.CloudFormationAPI{}
 	mockEC2 := &mocks.EC2API{}
+	mockR53 := &mocks.Route53API{}
 	c := &Cloud{
 		Logger: makeLogger(),
 		cf:     mockCF,
 		ec2:    mockEC2,
+		r53:    mockR53,
 	}
 
 	clusterName := "foo"
@@ -99,6 +102,7 @@ func TestCreateClusterInfra(t *testing.T) {
 	cluster := model.Cluster{
 		ResourceMeta: model.ResourceMeta{Name: clusterName},
 		MasterPool:   p,
+		DNSZone:      "dnszone.local",
 	}
 
 	returnSubnetsFunc := func() *ec2.DescribeSubnetsOutput {
@@ -112,6 +116,10 @@ func TestCreateClusterInfra(t *testing.T) {
 		}
 		return &ec2.DescribeSubnetsOutput{Subnets: subnets}
 	}
+
+	mockR53.On("ListHostedZonesByName", &route53.ListHostedZonesByNameInput{
+		DNSName: aws.String(cluster.DNSZone),
+	}).Return(&route53.ListHostedZonesByNameOutput{HostedZones: []*route53.HostedZone{{Name: aws.String(cluster.DNSZone)}}}, nil)
 
 	mockEC2.On("DescribeSubnets", &ec2.DescribeSubnetsInput{
 		SubnetIds: aws.StringSlice(p.Networks),
@@ -318,26 +326,31 @@ func TestCreateMasterPool(t *testing.T) {
 		},
 	}, nil)
 
+	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{StackName: aws.String(makeELBStackName(p.ClusterName))}).Return(
+		&cloudformation.DescribeStacksOutput{
+			Stacks: []*cloudformation.Stack{
+				{
+					StackId: aws.String("elb-stack-id"),
+					Outputs: []*cloudformation.Output{
+						{
+							OutputKey:   aws.String("ELBDNS"),
+							OutputValue: aws.String("kube-" + p.ClusterName),
+						},
+					},
+				},
+			},
+		}, nil).Once()
+
 	mockCF.On("DescribeStackResources", &cloudformation.DescribeStackResourcesInput{
 		StackName: aws.String(makeClusterInfraStackName(clusterName)),
 	}).Return(&cloudformation.DescribeStackResourcesOutput{
 		StackResources: []*cloudformation.StackResource{
 			{
-				ResourceType:       aws.String("AWS::ElasticLoadBalancing::LoadBalancer"),
-				PhysicalResourceId: aws.String("elb-physical-id"),
+				ResourceType:       aws.String("AWS::S3::Bucket"),
+				PhysicalResourceId: aws.String("s3-assets-bucket"),
 			},
 		},
 	}, nil).Once()
-
-	mockELB.On("DescribeLoadBalancers", &elb.DescribeLoadBalancersInput{
-		LoadBalancerNames: []*string{aws.String("elb-physical-id")},
-	}).Return(&elb.DescribeLoadBalancersOutput{
-		LoadBalancerDescriptions: []*elb.LoadBalancerDescription{
-			{
-				DNSName: aws.String("elb.local"),
-			},
-		},
-	}, nil)
 
 	mockEC2.On("DescribeSubnets", &ec2.DescribeSubnetsInput{
 		SubnetIds: aws.StringSlice([]string{infraSubnet})}).Return(&ec2.DescribeSubnetsOutput{

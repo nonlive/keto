@@ -38,6 +38,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elb"
 	"github.com/aws/aws-sdk-go/service/elb/elbiface"
+	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 )
@@ -75,6 +77,7 @@ type Cloud struct {
 	ec2    ec2iface.EC2API
 	elb    elbiface.ELBAPI
 	s3     s3iface.S3API
+	r53    route53iface.Route53API
 }
 
 // Compile-time check whether Cloud type value implements
@@ -94,6 +97,20 @@ func (c *Cloud) Clusters() (cloudprovider.Clusters, bool) {
 // CreateClusterInfra creates a new cluster, by creating ENIs, volumes and other
 // cluster infra related resources.
 func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
+	// Check whether hosted zone exists before creating any stacks.
+	if cluster.DNSZone != "" {
+		params := &route53.ListHostedZonesByNameInput{
+			DNSName: aws.String(cluster.DNSZone),
+		}
+		r, err := c.r53.ListHostedZonesByName(params)
+		if err != nil {
+			return fmt.Errorf("failed to list route53 dns zone: %v", err)
+		}
+		if r.HostedZones == nil {
+			return fmt.Errorf("dns zone %q does not exist", cluster.DNSZone)
+		}
+	}
+
 	subnets, err := c.describeSubnets(cluster.MasterPool.Networks)
 	if err != nil {
 		return err
@@ -112,7 +129,7 @@ func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
 	// ELB scheme is determined via Masterpool.Internal
 	cluster.MasterPool.Internal = cluster.Internal
 
-	return c.createLoadBalancer(cluster.MasterPool)
+	return c.createLoadBalancer(cluster)
 }
 
 // GetClusters returns a cluster by name or all clusters in the region.
@@ -165,26 +182,20 @@ func (c *Cloud) DescribeCluster(name string) error {
 	return ErrNotImplemented
 }
 
-// getKubeAPIURLFromELB returns a full Kubernetes API URL from an ELB.
-func (c Cloud) getKubeAPIURLFromELB(clusterName string) (string, error) {
-	elbName, err := c.getELBName(clusterName)
+// getKubeAPIURL returns a full Kubernetes API URL from an ELB stack.
+func (c Cloud) getKubeAPIURL(clusterName string) (string, error) {
+	stack, err := c.getStack(makeELBStackName(clusterName))
 	if err != nil {
 		return "", err
 	}
-	params := &elb.DescribeLoadBalancersInput{
-		LoadBalancerNames: []*string{
-			aws.String(elbName),
-		},
+
+	for _, o := range stack.Outputs {
+		if *o.OutputKey == "ELBDNS" {
+			return *o.OutputValue, nil
+		}
 	}
-	resp, err := c.elb.DescribeLoadBalancers(params)
-	if err != nil {
-		return "", err
-	}
-	if len(resp.LoadBalancerDescriptions) == 0 {
-		// TODO(vaijab) use awserr to access the underlying error
-		return "", errors.New("no load balancers found")
-	}
-	return formatKubeAPIURL(*resp.LoadBalancerDescriptions[0].DNSName), nil
+
+	return "", err
 }
 
 func formatKubeAPIURL(host string) string {
@@ -422,7 +433,7 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 		return err
 	}
 
-	kubeAPIURL, err := c.getKubeAPIURLFromELB(p.ClusterName)
+	kubeAPIURL, err := c.getKubeAPIURL(p.ClusterName)
 	if err != nil {
 		return err
 	}
@@ -437,8 +448,8 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 }
 
 // createLoadBalancer ensures a load balancer is created.
-func (c *Cloud) createLoadBalancer(p model.MasterPool) error {
-	subnets, err := c.describeSubnets(p.Networks)
+func (c *Cloud) createLoadBalancer(cluster model.Cluster) error {
+	subnets, err := c.describeSubnets(cluster.MasterPool.Networks)
 	if err != nil {
 		return err
 	}
@@ -447,8 +458,8 @@ func (c *Cloud) createLoadBalancer(p model.MasterPool) error {
 		return err
 	}
 
-	infraStackName := makeClusterInfraStackName(p.ClusterName)
-	return c.createELBStack(p, vpcID, infraStackName)
+	infraStackName := makeClusterInfraStackName(cluster.Name)
+	return c.createELBStack(cluster, vpcID, infraStackName)
 }
 
 // CreateComputePool creates a compute node pool.
@@ -479,7 +490,7 @@ func (c *Cloud) CreateComputePool(p model.ComputePool) error {
 	if err != nil {
 		return err
 	}
-	kubeAPIURL, err := c.getKubeAPIURLFromELB(p.ClusterName)
+	kubeAPIURL, err := c.getKubeAPIURL(p.ClusterName)
 	if err != nil {
 		return err
 	}
@@ -796,6 +807,7 @@ func newCloud(sess *session.Session, l cloudprovider.Logger) (*Cloud, error) {
 		ec2:    ec2.New(sess),
 		elb:    elb.New(sess),
 		s3:     s3.New(sess),
+		r53:    route53.New(sess),
 	}
 	return c, nil
 }

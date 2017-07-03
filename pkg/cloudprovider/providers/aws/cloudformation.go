@@ -303,14 +303,14 @@ func makeMasterPoolStackName(clusterName, part string) string {
 	return fmt.Sprintf("keto-%s-%s-%s", clusterName, masterPoolStackType, part)
 }
 
-func (c *Cloud) createELBStack(p model.MasterPool, vpcID, infraStackName string) error {
-	templateBody, err := renderELBStackTemplate(p, vpcID, infraStackName)
+func (c *Cloud) createELBStack(cluster model.Cluster, vpcID, infraStackName string) error {
+	templateBody, err := renderELBStackTemplate(cluster, vpcID, infraStackName)
 	if err != nil {
 		return err
 	}
 	stack := &cloudformation.CreateStackInput{
-		StackName:    aws.String(makeELBStackName(p.ClusterName)),
-		Tags:         makeStackTags(p.ClusterName, elbStackType, "", "", "", "", "", "", 0, p.Internal),
+		StackName:    aws.String(makeELBStackName(cluster.Name)),
+		Tags:         makeStackTags(cluster.Name, elbStackType, "", "", "", "", "", "", 0, cluster.Internal),
 		TemplateBody: aws.String(templateBody),
 	}
 

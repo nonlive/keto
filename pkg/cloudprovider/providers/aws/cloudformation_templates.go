@@ -193,16 +193,16 @@ Outputs:
 	return b.String(), nil
 }
 
-func renderELBStackTemplate(p model.MasterPool, vpcID, clusterInfraStackName string) (string, error) {
+func renderELBStackTemplate(c model.Cluster, vpcID, clusterInfraStackName string) (string, error) {
 	const (
 		elbStackTemplate = `---
-Description: "Kubernetes cluster '{{ .ClusterName }}' ELB stack"
+Description: "Kubernetes cluster '{{ .Cluster.Name }}' ELB stack"
 
 Resources:
   ELBSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: "Kubernetes cluster {{ .ClusterName }} SG for API ELB"
+      GroupDescription: "Kubernetes cluster {{ .Cluster.Name }} SG for API ELB"
       VpcId: {{ .VpcID }}
       SecurityGroupIngress:
         - IpProtocol: "6"
@@ -215,7 +215,7 @@ Resources:
           ToPort: "6443"
       Tags:
         - Key: Name
-          Value: "keto-{{ .ClusterName }}-kubeapi"
+          Value: "keto-{{ .Cluster.Name }}-kubeapi"
 
   # Allow ELB to talk to master node pool on 6443/tcp
   ELBtoMasterNodePoolTrafficSG:
@@ -232,7 +232,7 @@ Resources:
     Properties:
       CrossZone: true
       Subnets:
-{{- range $index, $subnet := .Networks }}
+{{- range $index, $subnet := .Cluster.MasterPool.Networks }}
         - {{ $subnet }}
 {{ end }}
       SecurityGroups:
@@ -257,29 +257,44 @@ Resources:
           InstanceProtocol: TCP
       ConnectionSettings:
         IdleTimeout: 600
-      Scheme: {{ if .Internal }}"internal"{{ else }}"internet-facing"{{ end }}
+      Scheme: {{ if .Cluster.Internal }}"internal"{{ else }}"internet-facing"{{ end }}
+
+{{ if ne .Cluster.DNSZone "" }}
+  ELBDNS:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneName: {{ .Cluster.DNSZone }}.
+      RecordSets:
+        - Name: kube-{{ .Cluster.Name }}.{{ .Cluster.DNSZone }}
+          Type: A
+          AliasTarget:
+            HostedZoneId:
+              'Fn::GetAtt':
+                - ELB
+                - CanonicalHostedZoneNameID
+            DNSName:
+              'Fn::GetAtt': [ ELB, {{ if .Cluster.Internal }}DNSName{{ else }}CanonicalHostedZoneName{{ end }} ]
+{{ end }}
 
 Outputs:
   ELB:
     Value: !Ref ELB
+  ELBDNS:
+    {{ if ne .Cluster.DNSZone "" }}Value: kube-{{ .Cluster.Name }}.{{ .Cluster.DNSZone }}{{ else }}Value: {'Fn::GetAtt': [ ELB, {{ if .Cluster.Internal }}DNSName}{{ else }}CanonicalHostedZoneName{{ end }} ]}{{ end }}
 `
 	)
 
 	// Make sure networks are always in the same order.
-	sort.Strings(p.Networks)
+	sort.Strings(c.MasterPool.Networks)
 
 	data := struct {
-		ClusterName           string
-		Networks              []string
+		Cluster               model.Cluster
 		VpcID                 string
 		ClusterInfraStackName string
-		Internal              bool
 	}{
-		ClusterName: p.ClusterName,
-		Networks:    p.Networks,
-		VpcID:       vpcID,
+		Cluster: c,
+		VpcID:   vpcID,
 		ClusterInfraStackName: clusterInfraStackName,
-		Internal:              p.Internal,
 	}
 
 	t := template.Must(template.New("elb-stack").Parse(elbStackTemplate))
