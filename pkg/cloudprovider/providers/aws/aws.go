@@ -191,7 +191,7 @@ func (c Cloud) getKubeAPIURL(clusterName string) (string, error) {
 
 	for _, o := range stack.Outputs {
 		if *o.OutputKey == "ELBDNS" {
-			return *o.OutputValue, nil
+			return formatKubeAPIURL(*o.OutputValue), nil
 		}
 	}
 

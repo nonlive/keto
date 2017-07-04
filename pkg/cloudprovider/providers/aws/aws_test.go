@@ -23,6 +23,7 @@ package aws
 
 import (
 	"log"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -393,4 +394,42 @@ func TestCreateMasterPool(t *testing.T) {
 	mockCF.AssertExpectations(t)
 	mockELB.AssertExpectations(t)
 	mockEC2.AssertExpectations(t)
+}
+
+func TestGetKubeAPIURL(t *testing.T) {
+	mockCF := &mocks.CloudFormationAPI{}
+	c := &Cloud{
+		Logger: makeLogger(),
+		cf:     mockCF,
+	}
+
+	clusterName := "foo"
+	mockCF.On("DescribeStacks", &cloudformation.DescribeStacksInput{StackName: aws.String(makeELBStackName(clusterName))}).Return(
+		&cloudformation.DescribeStacksOutput{
+			Stacks: []*cloudformation.Stack{
+				{
+					StackId: aws.String("elb-stack-id"),
+					Outputs: []*cloudformation.Output{
+						{
+							OutputKey:   aws.String("ELBDNS"),
+							OutputValue: aws.String("kube-" + clusterName + ".local"),
+						},
+					},
+				},
+			},
+		}, nil).Once()
+
+	result, err := c.getKubeAPIURL(clusterName)
+	if err != nil {
+		t.Error(err)
+	}
+	u, err := url.Parse(result)
+	if err != nil {
+		t.Errorf("failed to parse URL, got %q", u)
+	}
+	if u.Scheme != "https" {
+		t.Errorf("url scheme is not correct, got %q; wanted %q", u.Scheme, "https")
+	}
+
+	mockCF.AssertExpectations(t)
 }
