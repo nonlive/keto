@@ -52,7 +52,7 @@ func TestCreateCluster(t *testing.T) {
 	m.Clusters.On("PushAssets", cluster.Name, model.Assets{}).Return(nil)
 
 	// At this point the cluster infra already exists.
-	m.Clusters.On("GetClusters", cluster.Name).Return([]*model.Cluster{&cluster}, nil).Once()
+	m.Clusters.On("GetClusters", "").Return([]*model.Cluster{&cluster}, nil).Once()
 	m.NodePooler.On("GetMasterPools", cluster.Name, "").Return([]*model.MasterPool{}, nil)
 	m.Clusters.On("GetMasterPersistentIPs", cluster.Name).Return(persistentIPs, nil)
 	m.Provider.On("ProviderName").Return(cloudProviderName)
@@ -101,7 +101,7 @@ func TestCreateMasterPoolAlreadyExists(t *testing.T) {
 		NodePool: testutil.MakeNodePool(clusterName, "master"),
 	}
 
-	m.Clusters.On("GetClusters", clusterName).Return([]*model.Cluster{&model.Cluster{ResourceMeta: model.ResourceMeta{Name: clusterName}}}, nil).Once()
+	m.Clusters.On("GetClusters", "").Return([]*model.Cluster{&model.Cluster{ResourceMeta: model.ResourceMeta{Name: clusterName}}}, nil).Once()
 	m.NodePooler.On("GetMasterPools", clusterName, "").Return([]*model.MasterPool{&p}, nil)
 
 	if err := ctrl.CreateMasterPool(p); err != ErrMasterPoolAlreadyExists {

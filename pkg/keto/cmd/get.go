@@ -44,17 +44,13 @@ var getClusterCmd = &cobra.Command{
 }
 
 func getClusterCmdFunc(c *cobra.Command, args []string) error {
-	name := ""
-	if len(args) == 1 {
-		name = args[0]
-	}
 
 	cli, err := newCLI(c)
 	if err != nil {
 		return err
 	}
 
-	return listClusters(cli, name)
+	return listClusters(cli, args...)
 }
 
 var getMasterPoolCmd = &cobra.Command{
@@ -75,17 +71,12 @@ func getMasterPoolCmdFunc(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	name := ""
-	if len(args) == 1 {
-		name = args[0]
-	}
-
 	cli, err := newCLI(c)
 	if err != nil {
 		return err
 	}
 
-	return listMasterPools(cli, clusterName, name)
+	return listMasterPools(cli, clusterName, args...)
 }
 
 var getComputePoolCmd = &cobra.Command{
@@ -106,37 +97,32 @@ func getComputePoolCmdFunc(c *cobra.Command, args []string) error {
 		return err
 	}
 
-	name := ""
-	if len(args) == 1 {
-		name = args[0]
-	}
-
 	cli, err := newCLI(c)
 	if err != nil {
 		return err
 	}
 
-	return listComputePools(cli, clusterName, name)
+	return listComputePools(cli, clusterName, args...)
 }
 
-func listMasterPools(cli *cli, clusterName, name string) error {
-	pools, err := cli.ctrl.GetMasterPools(clusterName, name)
+func listMasterPools(cli *cli, clusterName string, names ...string) error {
+	pools, err := cli.ctrl.GetMasterPools(clusterName, names...)
 	if err != nil {
 		return err
 	}
 	return keto.PrintMasterPool(keto.GetPrinter(os.Stdout), pools, true)
 }
 
-func listComputePools(cli *cli, clusterName, name string) error {
-	pools, err := cli.ctrl.GetComputePools(clusterName, name)
+func listComputePools(cli *cli, clusterName string, names ...string) error {
+	pools, err := cli.ctrl.GetComputePools(clusterName, names...)
 	if err != nil {
 		return err
 	}
 	return keto.PrintComputePool(keto.GetPrinter(os.Stdout), pools, true)
 }
 
-func listClusters(cli *cli, name string) error {
-	clusters, err := cli.ctrl.GetClusters(name)
+func listClusters(cli *cli, names ...string) error {
+	clusters, err := cli.ctrl.GetClusters(names...)
 	if err != nil {
 		return err
 	}
