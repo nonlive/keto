@@ -81,3 +81,11 @@ type Status struct {
 	Upgraded int64  `json:"upgraded,omitempty"`
 	State    string `json:"state,omitempty"`
 }
+
+// NodeData contains cloud Node related data.
+type NodeData struct {
+	KubeAPIURL  string
+	ClusterName string
+	KubeVersion string
+	Labels
+}

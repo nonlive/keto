@@ -81,12 +81,8 @@ type NodePooler interface {
 // Node is an abstract interface for interacting with a cloud provider when
 // running on a cloud instance.
 type Node interface {
-	// GetKubeAPIURL returns a full URL to Kubernetes API.
-	GetKubeAPIURL() (string, error)
-	// GetKubeVersion returns a kubernetes version string.
-	GetKubeVersion() (string, error)
-	// GetAssets gets assets onto a filesystem.
+	// GetAssets gets assets from a cloud.
 	GetAssets() (model.Assets, error)
-	// GetClusterName gets the "name" of the cluster
-	GetClusterName() (string, error)
+	// GetNodeData returns node data.
+	GetNodeData() (model.NodeData, error)
 }

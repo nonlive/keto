@@ -92,18 +92,9 @@ func (c *Cloud) getStack(name string) (*cloudformation.Stack, error) {
 
 // getStackLabels returns a model.Labels of given a cloudformation stack
 func getStackLabels(s *cloudformation.Stack) model.Labels {
-	reservedTag := func(t *cloudformation.Tag) bool {
-		for _, i := range stackTagsNotLabels {
-			if *t.Key == i {
-				return true
-			}
-		}
-		return false
-	}
-
 	labels := model.Labels{}
 	for _, tag := range s.Tags {
-		if reservedTag(tag) {
+		if tagReserved(*tag.Key) {
 			continue
 		}
 		labels[*tag.Key] = *tag.Value
