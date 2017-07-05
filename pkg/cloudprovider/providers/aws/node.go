@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
 // Node returns an implementation of Node interface for AWS Cloud.
@@ -14,31 +15,44 @@ func (c *Cloud) Node() (cloudprovider.Node, bool) {
 	return c, true
 }
 
-// GetKubeAPIURL returns a full URL to Kubernetes API.
-func (c *Cloud) GetKubeAPIURL() (string, error) {
+// GetNodeData returns model.NodeData which contains information like node
+// labels, kube version, etc.
+func (c Cloud) GetNodeData() (model.NodeData, error) {
 	metadata, err := getInstanceMetadata()
 	if err != nil {
-		return "", err
+		return model.NodeData{}, err
 	}
-	return c.getResourceTagValue(metadata.InstanceID, kubeAPIURLTagKey)
-}
 
-// GetClusterName returns the cluster-name value.
-func (c *Cloud) GetClusterName() (string, error) {
-	metadata, err := getInstanceMetadata()
+	tags, err := c.getInstanceTags(metadata.InstanceID)
 	if err != nil {
-		return "", err
+		return model.NodeData{}, err
 	}
-	return c.getResourceTagValue(metadata.InstanceID, clusterNameTagKey)
-}
 
-// GetKubeVersion returns a kubernetes version string.
-func (c *Cloud) GetKubeVersion() (string, error) {
-	metadata, err := getInstanceMetadata()
-	if err != nil {
-		return "", err
+	data := model.NodeData{}
+	labels := model.Labels{}
+
+	for _, t := range tags {
+		if *t.Key == kubeAPIURLTagKey {
+			data.KubeAPIURL = *t.Value
+		}
+
+		if *t.Key == clusterNameTagKey {
+			data.ClusterName = *t.Value
+		}
+
+		if *t.Key == kubeVersionTagKey {
+			data.KubeVersion = *t.Value
+		}
+
+		// Skip over reserved tags.
+		if tagReserved(*t.Value) {
+			continue
+		}
+		labels[*t.Key] = *t.Value
 	}
-	return c.getResourceTagValue(metadata.InstanceID, kubeVersionTagKey)
+	data.Labels = labels
+
+	return data, nil
 }
 
 // getInstanceMetadata returns an instance metadata document from EC2 metadata service.
@@ -51,7 +65,27 @@ func getInstanceMetadata() (ec2metadata.EC2InstanceIdentityDocument, error) {
 	return metadataService.GetInstanceIdentityDocument()
 }
 
-// GetAssets gets assets onto a filesystem.
+func (c Cloud) getInstanceTags(id string) ([]*ec2.TagDescription, error) {
+	params := &ec2.DescribeTagsInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("resource-id"),
+				Values: []*string{
+					aws.String(id),
+				},
+			},
+		},
+	}
+
+	resp, err := c.ec2.DescribeTags(params)
+	if err != nil {
+		return resp.Tags, err
+	}
+
+	return resp.Tags, nil
+}
+
+// GetAssets gets assets from a cloud.
 func (c *Cloud) GetAssets() (model.Assets, error) {
 	a := model.Assets{}
 

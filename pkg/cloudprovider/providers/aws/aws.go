@@ -773,6 +773,15 @@ func (c Cloud) getResourceTagValue(resourceID, key string) (string, error) {
 	return "", nil
 }
 
+func tagReserved(s string) bool {
+	for _, i := range stackTagsNotLabels {
+		if s == i {
+			return true
+		}
+	}
+	return false
+}
+
 // init registers AWS cloud with the cloudprovider.
 func init() {
 	// f knows how to initialize the cloud
