@@ -18,6 +18,7 @@ package userdata
 
 import (
 	"bytes"
+	"os"
 	"text/template"
 
 	"github.com/UKHomeOffice/keto/pkg/constants"
@@ -391,6 +392,12 @@ write_files:
     vm.max_map_count=262144
 `
 
+	// TODO: remove this. This is only for testing until we find a better and safer way.
+	ketoK8ImageURI := constants.DefaultKetoK8Image
+	if uri := os.Getenv("KETO_K8_IMAGE_URI"); uri != "" {
+		ketoK8ImageURI = uri
+	}
+
 	data := struct {
 		ClusterName       string
 		KubeVersion       string
@@ -400,7 +407,7 @@ write_files:
 		ClusterName:       clusterName,
 		KubeVersion:       kubeVersion,
 		CloudProviderName: cloudProviderName,
-		KetoK8Image:       constants.DefaultKetoK8Image,
+		KetoK8Image:       ketoK8ImageURI,
 	}
 
 	t := template.Must(template.New("compute-cloud-config").Parse(computeTemplate))
