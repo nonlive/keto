@@ -19,6 +19,7 @@ package keto
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -95,6 +96,7 @@ func labelsToKVs(m model.Labels) string {
 	for k, v := range m {
 		s = append(s, fmt.Sprintf("%s=%s", k, v))
 	}
+	sort.Strings(s)
 	return strings.Join(s, ",")
 }
 
