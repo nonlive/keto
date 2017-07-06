@@ -133,7 +133,7 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	if err != nil {
 		return err
 	}
-	if len(clusters) != 1 {
+	if len(clusters) == 0 {
 		return ErrClusterDoesNotExist
 	}
 	if len(clusters) > 1 {
@@ -265,54 +265,72 @@ func (c *Controller) computePoolExists(clusterName, name string, pooler cloudpro
 }
 
 // GetMasterPools returns a list of master pools
-func (c *Controller) GetMasterPools(clusterName, name string) ([]*model.MasterPool, error) {
+func (c *Controller) GetMasterPools(clusterName string, names ...string) ([]*model.MasterPool, error) {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
 		return []*model.MasterPool{}, ErrNotImplemented
 	}
 
 	c.Logger.Printf("getting masterpool in cluster %q", clusterName)
-	pools, err := pooler.GetMasterPools(clusterName, name)
+
+	p, err := pooler.GetMasterPools(clusterName, "")
 	if err != nil {
 		return []*model.MasterPool{}, err
 	}
-	return pools, nil
+
+	return filterMasterPools(p, names), nil
 }
 
 // GetComputePools returns a list of compute node pools.
-func (c *Controller) GetComputePools(clusterName, name string) ([]*model.ComputePool, error) {
+func (c *Controller) GetComputePools(clusterName string, names ...string) ([]*model.ComputePool, error) {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
 		return []*model.ComputePool{}, ErrNotImplemented
 	}
 
 	c.Logger.Printf("getting computepool in cluster %q", clusterName)
-	pools, err := pooler.GetComputePools(clusterName, name)
+
+	p, err := pooler.GetComputePools(clusterName, "")
 	if err != nil {
 		return []*model.ComputePool{}, err
 	}
-	return pools, nil
+
+	return filterComputePools(p, names), nil
 }
 
 // GetClusters gets a list of clusters.
-func (c *Controller) GetClusters(name string) ([]*model.Cluster, error) {
+func (c *Controller) GetClusters(names ...string) ([]*model.Cluster, error) {
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
 		return []*model.Cluster{}, ErrNotImplemented
 	}
 	c.Logger.Printf("getting clusters")
-	return cl.GetClusters(name)
+
+	clusters, err := cl.GetClusters("")
+	if err != nil {
+		return []*model.Cluster{}, err
+	}
+
+	return filterClusters(clusters, names), nil
+
 }
 
 // DeleteCluster deletes a cluster.
-func (c *Controller) DeleteCluster(name string) error {
+func (c *Controller) DeleteCluster(names ...string) error {
 	cl, impl := c.Cloud.Clusters()
 	if !impl {
 		return ErrNotImplemented
 	}
 
-	c.Logger.Printf("deleting cluster %q", name)
-	return cl.DeleteCluster(name)
+	for _, n := range names {
+		c.Logger.Printf("deleting cluster %q", n)
+		err := cl.DeleteCluster(n)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DeleteMasterPool deletes a master node pool.
@@ -327,12 +345,76 @@ func (c *Controller) DeleteMasterPool(clusterName string) error {
 }
 
 // DeleteComputePool deletes a compute node pool.
-func (c *Controller) DeleteComputePool(clusterName, name string) error {
+func (c *Controller) DeleteComputePool(clusterName string, names ...string) error {
 	pooler, impl := c.Cloud.NodePooler()
 	if !impl {
 		return ErrNotImplemented
 	}
 
-	c.Logger.Printf("deleting computepool %q of cluster %q", name, clusterName)
-	return pooler.DeleteComputePool(clusterName, name)
+	for _, name := range names {
+		c.Logger.Printf("deleting computepool %q of cluster %q", name, clusterName)
+		err := pooler.DeleteComputePool(clusterName, name)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func filterMasterPools(pools []*model.MasterPool, names []string) []*model.MasterPool {
+	filteredPools := []*model.MasterPool{}
+
+	for _, p := range pools {
+		if stringInSlice(p.Name, names) {
+			filteredPools = append(filteredPools, p)
+		}
+	}
+
+	if len(filteredPools) != 0 {
+		return filteredPools
+	}
+	return pools
+
+}
+
+func filterComputePools(pools []*model.ComputePool, names []string) []*model.ComputePool {
+
+	filteredPools := []*model.ComputePool{}
+
+	for _, p := range pools {
+		if stringInSlice(p.Name, names) {
+			filteredPools = append(filteredPools, p)
+		}
+	}
+
+	if len(filteredPools) != 0 {
+		return filteredPools
+	}
+
+	return pools
+}
+
+func filterClusters(clusters []*model.Cluster, names []string) []*model.Cluster {
+	filteredClusters := []*model.Cluster{}
+
+	for _, c := range clusters {
+		if stringInSlice(c.Name, names) {
+			filteredClusters = append(filteredClusters, c)
+		}
+	}
+
+	if len(filteredClusters) != 0 {
+		return filteredClusters
+	}
+
+	return clusters
+}
+
+func stringInSlice(name string, names []string) bool {
+	for _, n := range names {
+		if name == n {
+			return true
+		}
+	}
+	return false
 }

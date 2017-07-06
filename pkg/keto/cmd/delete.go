@@ -42,21 +42,20 @@ var deleteClusterCmd = &cobra.Command{
 }
 
 func deleteClusterCmdFunc(c *cobra.Command, args []string) error {
-	if len(args) != 1 {
+	if len(args) == 0 {
 		return errors.New("cluster name is not specified")
 	}
-	name := args[0]
 
 	cli, err := newCLI(c)
 	if err != nil {
 		return err
 	}
 
-	cli.logger.Printf("Deleting cluster %q", name)
-	if err := cli.ctrl.DeleteCluster(name); err != nil {
+	cli.logger.Printf("Deleting cluster %q", args)
+	if err := cli.ctrl.DeleteCluster(args...); err != nil {
 		return err
 	}
-	cli.logger.Printf("Cluster %q successfully deleted", name)
+	cli.logger.Printf("Cluster %q successfully deleted", args)
 	return nil
 }
 
@@ -105,10 +104,9 @@ var deleteComputePoolCmd = &cobra.Command{
 }
 
 func deleteComputePoolCmdFunc(c *cobra.Command, args []string) error {
-	if len(args) != 1 {
+	if len(args) == 0 {
 		return errors.New("computepool name is not specified")
 	}
-	name := args[0]
 
 	clusterName, err := c.Flags().GetString("cluster")
 	if err != nil {
@@ -119,11 +117,11 @@ func deleteComputePoolCmdFunc(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	cli.logger.Printf("Deleting computepool %q of cluster %q", name, clusterName)
-	if err := cli.ctrl.DeleteComputePool(clusterName, name); err != nil {
+	cli.logger.Printf("Deleting computepool %q of cluster %q", args, clusterName)
+	if err := cli.ctrl.DeleteComputePool(clusterName, args...); err != nil {
 		return err
 	}
-	cli.logger.Printf("Computepool %q successfully deleted", name)
+	cli.logger.Printf("Computepool %q successfully deleted", args)
 	return nil
 }
 
