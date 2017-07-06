@@ -45,7 +45,7 @@ func (c Cloud) GetNodeData() (model.NodeData, error) {
 		}
 
 		// Skip over reserved tags.
-		if tagReserved(*t.Value) {
+		if tagReserved(*t.Key) {
 			continue
 		}
 		labels[*t.Key] = *t.Value
