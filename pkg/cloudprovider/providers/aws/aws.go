@@ -774,6 +774,9 @@ func (c Cloud) getResourceTagValue(resourceID, key string) (string, error) {
 }
 
 func tagReserved(s string) bool {
+	if strings.HasPrefix(s, "aws:") {
+		return true
+	}
 	for _, i := range stackTagsNotLabels {
 		if s == i {
 			return true
