@@ -2,6 +2,7 @@ package aws
 
 import (
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/model"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -36,7 +37,7 @@ func (c Cloud) GetNodeData() (model.NodeData, error) {
 			data.KubeAPIURL = *t.Value
 		}
 
-		if *t.Key == clusterNameTagKey {
+		if *t.Key == constants.ClusterNameLabelKey {
 			data.ClusterName = *t.Value
 		}
 

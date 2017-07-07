@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider/providers/aws/mocks"
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/model"
 	"github.com/UKHomeOffice/keto/testutil"
 
@@ -166,7 +167,7 @@ func TestGetClusters(t *testing.T) {
 					Value: aws.String(managedByKetoTagValue),
 				},
 				{
-					Key:   aws.String(clusterNameTagKey),
+					Key:   aws.String(constants.ClusterNameLabelKey),
 					Value: aws.String("foo"),
 				},
 				{
@@ -187,7 +188,7 @@ func TestGetClusters(t *testing.T) {
 					Value: aws.String(managedByKetoTagValue),
 				},
 				{
-					Key:   aws.String(clusterNameTagKey),
+					Key:   aws.String(constants.ClusterNameLabelKey),
 					Value: aws.String("bar"),
 				},
 				{
@@ -236,11 +237,11 @@ func TestDeleteComputePool(t *testing.T) {
 					Value: aws.String(managedByKetoTagValue),
 				},
 				{
-					Key:   aws.String(clusterNameTagKey),
+					Key:   aws.String(constants.ClusterNameLabelKey),
 					Value: aws.String("foo"),
 				},
 				{
-					Key:   aws.String(poolNameTagKey),
+					Key:   aws.String(constants.PoolNameLabelKey),
 					Value: aws.String("compute"),
 				},
 				{
@@ -289,7 +290,7 @@ func TestCreateMasterPool(t *testing.T) {
 				Values: []*string{aws.String(managedByKetoTagValue)},
 			},
 			{
-				Name:   aws.String("tag:" + clusterNameTagKey),
+				Name:   aws.String("tag:" + constants.ClusterNameLabelKey),
 				Values: []*string{aws.String(clusterName)},
 			},
 		},
