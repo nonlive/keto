@@ -15,4 +15,9 @@ const (
 	// TODO only works for AWS cloud for now. Need to figure out some sort of
 	// validation and CoreOS version to cloud image name mapping.
 	DefaultCoreOSVersion = "CoreOS-stable-1353.8.0-hvm"
+
+	// ClusterNameLabelKey label key name for cluster name label.
+	ClusterNameLabelKey = "cluster-name"
+	// PoolNameLabelKey label key name for pool name label.
+	PoolNameLabelKey = "pool-name"
 )

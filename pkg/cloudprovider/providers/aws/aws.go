@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/model"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -55,7 +56,8 @@ const (
 	// resources are managed by keto.
 	managedByKetoTagKey   = "managed-by-keto"
 	managedByKetoTagValue = "true"
-	clusterNameTagKey     = "cluster-name"
+	machineTypeTagKey     = "machine-type"
+	diskSizeTagKey        = "disk-size"
 
 	etcdCACertObjectName = "etcd_ca.crt"
 	etcdCAKeyObjectName  = "etcd_ca.key"
@@ -145,7 +147,7 @@ outer:
 	for _, s := range stacks {
 		c := &model.Cluster{}
 		for _, tag := range s.Tags {
-			if *tag.Key == clusterNameTagKey && *tag.Value != "" {
+			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value != "" {
 				// if filtered by cluster name and the stack tag does not
 				// match it, skip over the stack
 				if name != "" && *tag.Value != name {
@@ -336,7 +338,7 @@ func (c Cloud) describePersistentENIs(clusterName string) ([]*ec2.NetworkInterfa
 				Values: []*string{aws.String(managedByKetoTagValue)},
 			},
 			{
-				Name:   aws.String("tag:" + clusterNameTagKey),
+				Name:   aws.String("tag:" + constants.ClusterNameLabelKey),
 				Values: []*string{aws.String(clusterName)},
 			},
 		},
@@ -513,13 +515,13 @@ outer:
 	for _, s := range stacks {
 		p := &model.MasterPool{}
 		for _, tag := range s.Tags {
-			if *tag.Key == clusterNameTagKey && *tag.Value != "" {
+			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value != "" {
 				if clusterName != "" && *tag.Value != clusterName {
 					continue outer
 				}
 				p.ClusterName = *tag.Value
 			}
-			if *tag.Key == poolNameTagKey && *tag.Value != "" {
+			if *tag.Key == constants.PoolNameLabelKey && *tag.Value != "" {
 				if name != "" && *tag.Value != name {
 					continue outer
 				}
@@ -564,13 +566,13 @@ outer:
 	for _, s := range stacks {
 		p := &model.ComputePool{}
 		for _, tag := range s.Tags {
-			if *tag.Key == clusterNameTagKey && *tag.Value != "" {
+			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value != "" {
 				if clusterName != "" && *tag.Value != clusterName {
 					continue outer
 				}
 				p.ClusterName = *tag.Value
 			}
-			if *tag.Key == poolNameTagKey && *tag.Value != "" {
+			if *tag.Key == constants.PoolNameLabelKey && *tag.Value != "" {
 				if name != "" && *tag.Value != name {
 					continue outer
 				}
@@ -619,7 +621,7 @@ func (c *Cloud) DeleteMasterPool(clusterName string) error {
 
 	for _, s := range stacks {
 		for _, tag := range s.Tags {
-			if *tag.Key == clusterNameTagKey && *tag.Value == clusterName {
+			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value == clusterName {
 				if err := c.deleteStack(*s.StackId); err != nil {
 					return err
 				}
@@ -640,15 +642,15 @@ func (c *Cloud) DeleteComputePool(clusterName, name string) error {
 	matched := func(tags []*cloudformation.Tag) bool {
 		n := 0
 		for _, tag := range tags {
-			if *tag.Key == clusterNameTagKey && *tag.Value == clusterName {
+			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value == clusterName {
 				n++
 			}
 			if name != "" {
-				if *tag.Key == poolNameTagKey && *tag.Value == name {
+				if *tag.Key == constants.PoolNameLabelKey && *tag.Value == name {
 					n++
 				}
 			}
-			if name == "" && *tag.Key == poolNameTagKey {
+			if name == "" && *tag.Key == constants.PoolNameLabelKey {
 				n++
 			}
 		}

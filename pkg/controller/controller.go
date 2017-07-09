@@ -94,6 +94,13 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 		c.Logger.Printf("cluster is internal, node pools will also be internal")
 	}
 
+	// Initialize Labels map in case it hasn't been.
+	if cluster.Labels == nil {
+		cluster.Labels = model.Labels{}
+	}
+	// Set default cluster labels.
+	cluster.Labels[constants.ClusterNameLabelKey] = cluster.Name
+
 	c.Logger.Printf("creating cluster %q infrastructure", cluster.Name)
 	if err := cl.CreateClusterInfra(cluster); err != nil {
 		return err
@@ -183,6 +190,15 @@ func (c *Controller) CreateMasterPool(p model.MasterPool) error {
 	}
 	p.UserData = cloudConfig
 
+	// Cluster scope labels get applied to node pools by default.
+	if p.Labels == nil {
+		p.Labels = model.Labels{}
+	}
+	for k, v := range clusters[0].Labels {
+		p.Labels[k] = v
+	}
+	p.Labels[constants.PoolNameLabelKey] = p.Name
+
 	return pooler.CreateMasterPool(p)
 }
 
@@ -252,6 +268,15 @@ func (c *Controller) CreateComputePool(p model.ComputePool) error {
 		return err
 	}
 	p.UserData = cloudConfig
+
+	// Cluster scope labels get applied to node pools by default.
+	if p.Labels == nil {
+		p.Labels = model.Labels{}
+	}
+	for k, v := range clusters[0].Labels {
+		p.Labels[k] = v
+	}
+	p.Labels[constants.PoolNameLabelKey] = p.Name
 
 	return pooler.CreateComputePool(p)
 }

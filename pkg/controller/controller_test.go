@@ -24,6 +24,7 @@ import (
 	cloudProviderMocks "github.com/UKHomeOffice/keto/pkg/cloudprovider/mocks"
 	userdataMocks "github.com/UKHomeOffice/keto/pkg/userdata/mocks"
 
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/model"
 	"github.com/UKHomeOffice/keto/testutil"
 )
@@ -43,9 +44,15 @@ func TestCreateCluster(t *testing.T) {
 
 	persistentIPs := map[string]string{"node0": "1.1.1.1"}
 	cluster := model.Cluster{
-		ResourceMeta: model.ResourceMeta{Name: "foo"},
-		MasterPool:   model.MasterPool{NodePool: testutil.MakeNodePool("foo", "master")},
+		ResourceMeta: model.ResourceMeta{
+			Name: "foo",
+			Labels: model.Labels{
+				constants.ClusterNameLabelKey: "foo",
+			},
+		},
+		MasterPool: model.MasterPool{NodePool: testutil.MakeNodePool("foo", "master")},
 	}
+	cluster.MasterPool.Labels = cluster.Labels
 
 	m.Clusters.On("GetClusters", cluster.Name).Return([]*model.Cluster{}, nil).Once()
 	m.Clusters.On("CreateClusterInfra", cluster).Return(nil)

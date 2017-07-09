@@ -36,12 +36,9 @@ const (
 	greenStack = "green"
 
 	stackTypeTagKey        = "stack-type"
-	poolNameTagKey         = "pool-name"
 	coreOSVersionTagKey    = "coreos-version"
 	kubeVersionTagKey      = "kube-version"
 	kubeAPIURLTagKey       = "kube-api-url"
-	machineTypeTagKey      = "machine-type"
-	diskSizeTagKey         = "disk-size"
 	assetsBucketNameTagKey = "assets-bucket-name"
 	internalClusterTagKey  = "internal-cluster"
 
@@ -66,6 +63,8 @@ var (
 		coreOSVersionTagKey,
 		assetsBucketNameTagKey,
 		internalClusterTagKey,
+		machineTypeTagKey,
+		diskSizeTagKey,
 	}
 )
 
@@ -176,9 +175,16 @@ func (c *Cloud) createClusterInfraStack(cluster model.Cluster, vpcID string, sub
 		return err
 	}
 
+	l := model.Labels{}
+	for k, v := range cluster.Labels {
+		l[k] = v
+	}
+	l[stackTypeTagKey] = clusterInfraStackType
+	l[internalClusterTagKey] = strconv.FormatBool(cluster.Internal)
+
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeClusterInfraStackName(cluster.Name)),
-		Tags:         makeStackTags(cluster.Name, clusterInfraStackType, "", "", "", "", "", "", 0, cluster.Internal),
+		Tags:         makeStackTags(l),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -260,13 +266,26 @@ func (c *Cloud) createMasterPoolStack(
 	if err != nil {
 		return err
 	}
+
+	l := model.Labels{}
+	for k, v := range p.Labels {
+		l[k] = v
+	}
+	l[stackTypeTagKey] = masterPoolStackType
+	l[internalClusterTagKey] = strconv.FormatBool(p.Internal)
+	l[kubeVersionTagKey] = p.KubeVersion
+	l[coreOSVersionTagKey] = p.CoreOSVersion
+	l[machineTypeTagKey] = p.MachineType
+	l[kubeAPIURLTagKey] = kubeAPIURL
+	l[assetsBucketNameTagKey] = assetsBucketName
+	l[diskSizeTagKey] = strconv.Itoa(p.DiskSize)
+
 	stack := &cloudformation.CreateStackInput{
-		StackName: aws.String(makeMasterPoolStackName(p.ClusterName, "")),
+		StackName:    aws.String(makeMasterPoolStackName(p.ClusterName, "")),
+		TemplateBody: aws.String(templateBody),
+		Tags:         makeStackTags(l),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
-		Tags: makeStackTags(p.ClusterName, masterPoolStackType, p.Name, p.KubeVersion, p.CoreOSVersion,
-			p.MachineType, kubeAPIURL, assetsBucketName, p.DiskSize, p.Internal),
-		TemplateBody: aws.String(templateBody),
 	}
 
 	return c.createStack(stack)
@@ -299,9 +318,17 @@ func (c *Cloud) createELBStack(cluster model.Cluster, vpcID, infraStackName stri
 	if err != nil {
 		return err
 	}
+
+	l := model.Labels{}
+	for k, v := range cluster.Labels {
+		l[k] = v
+	}
+	l[stackTypeTagKey] = elbStackType
+	l[internalClusterTagKey] = strconv.FormatBool(cluster.Internal)
+
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeELBStackName(cluster.Name)),
-		Tags:         makeStackTags(cluster.Name, elbStackType, "", "", "", "", "", "", 0, cluster.Internal),
+		Tags:         makeStackTags(l),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -319,13 +346,25 @@ func (c *Cloud) createComputePoolStack(p model.ComputePool, infraStackName strin
 	if err != nil {
 		return err
 	}
+
+	l := model.Labels{}
+	for k, v := range p.Labels {
+		l[k] = v
+	}
+	l[stackTypeTagKey] = computePoolStackType
+	l[internalClusterTagKey] = strconv.FormatBool(p.Internal)
+	l[kubeVersionTagKey] = p.KubeVersion
+	l[coreOSVersionTagKey] = p.CoreOSVersion
+	l[machineTypeTagKey] = p.MachineType
+	l[kubeAPIURLTagKey] = kubeAPIURL
+	l[diskSizeTagKey] = strconv.Itoa(p.DiskSize)
+
 	stack := &cloudformation.CreateStackInput{
-		StackName: aws.String(makeComputePoolStackName(p.ClusterName, p.Name, "")),
+		StackName:    aws.String(makeComputePoolStackName(p.ClusterName, p.Name, "")),
+		TemplateBody: aws.String(templateBody),
+		Tags:         makeStackTags(l),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
-		Tags: makeStackTags(p.ClusterName, computePoolStackType, p.Name, p.KubeVersion, p.CoreOSVersion,
-			p.MachineType, kubeAPIURL, "", p.DiskSize, p.Internal),
-		TemplateBody: aws.String(templateBody),
 	}
 
 	return c.createStack(stack)
@@ -340,80 +379,21 @@ func makeComputePoolStackName(clusterName, name, part string) string {
 	return fmt.Sprintf("keto-%s-%s-%s", clusterName, name, part)
 }
 
-// makeStackTags returns a list of cloudformation tags that are applied to all stacks.
-func makeStackTags(
-	clusterName string,
-	stackType string,
-	poolName string,
-	kubeVersion string,
-	osVersion string,
-	machineType string,
-	kubeAPIURL string,
-	assetsBucketName string,
-	diskSize int,
-	internal bool,
-) []*cloudformation.Tag {
-	tags := []*cloudformation.Tag{
-		{
-			Key:   aws.String(managedByKetoTagKey),
-			Value: aws.String(managedByKetoTagValue),
-		},
-		{
-			Key:   aws.String(clusterNameTagKey),
-			Value: aws.String(clusterName),
-		},
-		{
-			Key:   aws.String(stackTypeTagKey),
-			Value: aws.String(stackType),
-		},
-		{
-			Key:   aws.String(internalClusterTagKey),
-			Value: aws.String(strconv.FormatBool(internal)),
-		},
+func makeStackTags(m map[string]string) []*cloudformation.Tag {
+	tags := []*cloudformation.Tag{}
+	for k, v := range m {
+		tags = append(tags, &cloudformation.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		})
 	}
 
-	if poolName != "" {
-		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(poolNameTagKey),
-			Value: aws.String(poolName),
-		})
-	}
-	if kubeVersion != "" {
-		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(kubeVersionTagKey),
-			Value: aws.String(kubeVersion),
-		})
-	}
-	if osVersion != "" {
-		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(coreOSVersionTagKey),
-			Value: aws.String(osVersion),
-		})
-	}
-	if machineType != "" {
-		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(machineTypeTagKey),
-			Value: aws.String(machineType),
-		})
-	}
-	if kubeAPIURL != "" {
-		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(kubeAPIURLTagKey),
-			Value: aws.String(kubeAPIURL),
-		})
-	}
-	if assetsBucketName != "" {
-		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(assetsBucketNameTagKey),
-			Value: aws.String(assetsBucketName),
-		})
-	}
-	if diskSize > 0 {
-		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(diskSizeTagKey),
-			Value: aws.String(strconv.Itoa(diskSize)),
-		})
-	}
+	// Add tags that apply to all stacks.
+	tags = append(tags, &cloudformation.Tag{
+		Key:   aws.String(managedByKetoTagKey),
+		Value: aws.String(managedByKetoTagValue),
+	})
+
 	return tags
 }
 
