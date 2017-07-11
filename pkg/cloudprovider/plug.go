@@ -18,6 +18,7 @@ package cloudprovider
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"sync"
 )
@@ -52,6 +53,10 @@ func Register(name string, cloud Factory) {
 // InitCloudProvider creates an instance of the named cloud provider. Logger l
 // need to be passed in at initialization time.
 func InitCloudProvider(name string, l Logger) (Interface, error) {
+	// Fallback to /dev/null logger if not provided.
+	if l == nil {
+		l = log.New(ioutil.Discard, "", 0)
+	}
 	providersMutex.Lock()
 	defer providersMutex.Unlock()
 	f, found := providers[name]
