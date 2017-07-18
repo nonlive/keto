@@ -35,6 +35,15 @@ type Cluster struct {
 
 // Labels a map of labels
 type Labels map[string]string
+type Taints map[string]string
+
+// KubeArgs represents the optional extra flags for Kubernetes components
+type KubeArgs struct {
+	KubeletExtraArgs           string
+	APIServerExtraArgs         string
+	ControllerManagerExtraArgs string
+	SchedulerExtraArgs         string
+}
 
 // MasterPool is a representation of a master control plane node pool.
 type MasterPool struct {
@@ -87,5 +96,7 @@ type NodeData struct {
 	KubeAPIURL  string
 	ClusterName string
 	KubeVersion string
+	KubeArgs
 	Labels
+	Taints
 }
