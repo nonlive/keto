@@ -34,6 +34,12 @@ Description: "Kubernetes cluster '{{ .ClusterName }}' infra stack"
 Resources:
   AssetsBucket:
     Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+        - Id: expiry
+          ExpirationInDays: '1'
+          Status: Enabled
 
   MasterNodePoolSG:
     Type: "AWS::EC2::SecurityGroup"
