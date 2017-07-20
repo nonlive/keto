@@ -16,8 +16,12 @@ pipeline:
       - go test -v -cover $(go list ./... | grep -v /vendor)
       - go build $(go list ./... | grep -v /vendor)
 
-matrix:
-  GO_VERSION:
-    - latest
-    - "1.8"
-    - "1.7"
+  test-e2e:
+    image: golang:1.8
+    environment:
+      - KETO_ASSETS_DIR=/ketoassets
+      - CLUSTER_NAME=drone-build-${DRONE_BUILD_NUMBER}
+    commands:
+      - ./bin/keto_test_e2e.sh
+    when:
+      event: deployment
