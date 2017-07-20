@@ -30,6 +30,7 @@ type Cluster struct {
 	MasterPool   MasterPool
 	ComputePools []ComputePool
 	DNSZone      string
+	KubeAPIURL   string
 	Status
 }
 
@@ -47,7 +48,6 @@ type KubeArgs struct {
 
 // MasterPool is a representation of a master control plane node pool.
 type MasterPool struct {
-	KubeAPIURL string
 	NodePool
 }
 
