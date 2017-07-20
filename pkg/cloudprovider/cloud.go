@@ -54,6 +54,8 @@ type Clusters interface {
 	GetMasterPersistentIPs(clusterName string) (map[string]string, error)
 	// PushAssets pushes assets to cloud provider specific implementation.
 	PushAssets(clusterName string, a model.Assets) error
+	// GetKubeAPIURL retrieves the API URL for a given cluster
+	GetKubeAPIURL(clusterName string) (string, error)
 }
 
 // NodePooler is an abstract interface for node pools.

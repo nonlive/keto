@@ -19,6 +19,9 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"os/exec"
+	"regexp"
+	"strings"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
 	"github.com/UKHomeOffice/keto/pkg/constants"
@@ -354,6 +357,45 @@ func (c *Controller) DeleteCluster(names ...string) error {
 	}
 
 	return nil
+}
+
+// GetClusterConfig retrieves the kubernetes config for a cluster
+func (c *Controller) GetClusterConfig(clusterName string, assetsDir string) (string, error) {
+	cl, impl := c.Cloud.Clusters()
+	if !impl {
+		return "", ErrNotImplemented
+	}
+
+	apiURL, err := cl.GetKubeAPIURL(clusterName)
+	if err != nil {
+		return "", err
+	}
+
+	var validURL = regexp.MustCompile(`^https:\/\/.+$`)
+	if !validURL.MatchString(apiURL) {
+		return "", fmt.Errorf(
+			"unable to retrieve valid API URL for cluster name %q and cloud provider %q. URL: %q",
+			clusterName,
+			c.Cloud.ProviderName(),
+			apiURL,
+		)
+	}
+
+	c.Logger.Printf("Generating kubernetes config for cluster: %q", clusterName)
+
+	cmdName := "kubeadm"
+	var cmdOut []byte
+	cmdArgs := []string{
+		"alpha", "phase", "kubeconfig", "client-certs", "--client-name",
+		"kubernetes-admin", "--organization", "system:masters",
+		"--server", apiURL, "--cert-dir", assetsDir,
+	}
+	c.Logger.Printf("Running: %v %v", cmdName, strings.Join(cmdArgs, " "))
+	cmdOut, err = exec.Command(cmdName, cmdArgs...).CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	return string(cmdOut[:]), nil
 }
 
 // DeleteMasterPool deletes a master node pool.

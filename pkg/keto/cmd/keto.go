@@ -51,9 +51,10 @@ var (
 	}
 
 	// subcommand aliases
-	clusterCmdAliases     = []string{"cl", "clusters"}
-	masterPoolCmdAliases  = []string{"mp", "master", "masters", "masterpools"}
-	computePoolCmdAliases = []string{"cp", "compute", "computes", "computepools"}
+	clusterCmdAliases       = []string{"cl", "clusters"}
+	masterPoolCmdAliases    = []string{"mp", "master", "masters", "masterpools"}
+	computePoolCmdAliases   = []string{"cp", "compute", "computes", "computepools"}
+	clusterConfigCmdAliases = []string{"conf", "configuration"}
 )
 
 // Execute adds all child commands to the root command sets flags appropriately.
@@ -258,5 +259,12 @@ func addControllerManagerExtraArgsFlag(c ...*cobra.Command) {
 func addSchedulerExtraArgsFlag(c ...*cobra.Command) {
 	for _, i := range c {
 		i.Flags().String("scheduler-extra-args", "", "Kubernetes scheduler extra arguments")
+	}
+}
+
+// addConfigOutputFileFlag adds an output file flag
+func addConfigOutputFileFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("output-file", "", "Write config output to a file")
 	}
 }
