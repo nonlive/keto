@@ -23,22 +23,23 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/UKHomeOffice/keto/pkg/keto/util"
 	"github.com/UKHomeOffice/keto/pkg/model"
 )
 
-func renderClusterInfraStackTemplate(clusterName, vpcID string, networks []nodesNetwork) (string, error) {
+func renderClusterInfraStackTemplate(c model.Cluster, vpcID string, networks []nodesNetwork) (string, error) {
 	const (
 		clusterInfraStackTemplate = `---
-Description: "Kubernetes cluster '{{ .ClusterName }}' infra stack"
+Description: "Kubernetes cluster '{{ .Cluster.Name }}' infra stack"
 
 Resources:
   AssetsBucket:
     Type: AWS::S3::Bucket
 
-  MasterNodePoolSG:
+  MasterPoolSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: "Kubernetes cluster {{ .ClusterName }} SG for master nodepool"
+      GroupDescription: "Kubernetes cluster {{ .Cluster.Name }} SG for master nodepool"
       VpcId: {{ .VpcID }}
       SecurityGroupIngress:
         - IpProtocol: "6"
@@ -52,34 +53,34 @@ Resources:
           ToPort: -1
       Tags:
         - Key: Name
-          Value: "keto-{{ .ClusterName }}-masterpool"
+          Value: "keto-{{ .Cluster.Name }}-masterpool"
         - Key: KubernetesCluster
-          Value: "{{ .ClusterName }}"
+          Value: "{{ .Cluster.Name }}"
 
   # Allow traffic between master nodes.
   # TODO(vaijab): not all traffic needs to be allowed, maybe just etcd?
-  MasterNodePoolAllTrafficSGIn:
+  MasterPoolAllTrafficSGIn:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !Ref MasterNodePoolSG
+      GroupId: !Ref MasterPoolSG
       IpProtocol: -1
-      SourceSecurityGroupId: !Ref MasterNodePoolSG
+      SourceSecurityGroupId: !Ref MasterPoolSG
       FromPort: -1
       ToPort: -1
 
-  MasterNodePoolComputeAPISGIn:
+  MasterPoolComputeAPISGIn:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !Ref MasterNodePoolSG
+      GroupId: !Ref MasterPoolSG
       IpProtocol: "6"
-      SourceSecurityGroupId: !Ref ComputeNodePoolSG
+      SourceSecurityGroupId: !Ref ComputePoolSG
       FromPort: 6443
       ToPort: 6443
 
-  ComputeNodePoolSG:
+  ComputePoolSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: "Kubernetes cluster {{ .ClusterName }} SG for compute nodepools"
+      GroupDescription: "Kubernetes cluster {{ .Cluster.Name }} SG for compute nodepools"
       VpcId: {{ .VpcID }}
       SecurityGroupIngress:
         - IpProtocol: "6"
@@ -93,40 +94,40 @@ Resources:
           ToPort: -1
       Tags:
         - Key: Name
-          Value: "keto-{{ .ClusterName }}-computepool"
+          Value: "keto-{{ .Cluster.Name }}-computepool"
         - Key: KubernetesCluster
-          Value: "{{ .ClusterName }}"
+          Value: "{{ .Cluster.Name }}"
 
   # Allow traffic between all compute pools.
   # TODO(vaijab): would be nice to isolate different compute pools from each other.
-  ComputeNodePoolAllTrafficSGIn:
+  ComputePoolAllTrafficSGIn:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !Ref ComputeNodePoolSG
+      GroupId: !Ref ComputePoolSG
       IpProtocol: -1
-      SourceSecurityGroupId: !Ref ComputeNodePoolSG
+      SourceSecurityGroupId: !Ref ComputePoolSG
       FromPort: -1
       ToPort: -1
 
   # Allow master nodes to talk to all compute pools.
-  MasterNodePoolToComputeNodePoolSG:
+  MasterPoolToComputePoolSG:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !Ref ComputeNodePoolSG
+      GroupId: !Ref ComputePoolSG
       IpProtocol: "-1"
-      SourceSecurityGroupId: !Ref MasterNodePoolSG
+      SourceSecurityGroupId: !Ref MasterPoolSG
       # TODO(vaijab): not all ports need to be allowed.
       FromPort: "-1"
       ToPort: "-1"
 
-{{ $clusterName := .ClusterName -}}
+{{ $clusterName := .Cluster.Name -}}
 {{ range $_, $n := .Networks }}
   ENI{{ $n.NodeID }}:
     Type: "AWS::EC2::NetworkInterface"
     Properties:
       Description: "Kubernetes cluster {{ $clusterName }} master ENI"
       GroupSet:
-        - !Ref MasterNodePoolSG
+        - !Ref MasterPoolSG
       SourceDestCheck: false
       SubnetId: "{{ $n.Subnet }}"
       Tags:
@@ -157,32 +158,61 @@ Outputs:
     Export:
       Name:
         Fn::Sub: "${AWS::StackName}-VpcID"
-  AssetsBucket:
+
+  MasterPoolSG:
+    Value: !Ref MasterPoolSG
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-MasterPoolSG"
+
+  ComputePoolSG:
+    Value: !Ref ComputePoolSG
+    Export:
+      Name:
+        Fn::Sub: "${AWS::StackName}-ComputePoolSG"
+
+  {{ .AssetsBucketNameOutputKey }}:
     Value: !Ref AssetsBucket
     Export:
       Name:
         Fn::Sub: "${AWS::StackName}-AssetsBucket"
-  MasterNodePoolSG:
-    Value: !Ref MasterNodePoolSG
-    Export:
-      Name:
-        Fn::Sub: "${AWS::StackName}-MasterNodePoolSG"
-  ComputeNodePoolSG:
-    Value: !Ref ComputeNodePoolSG
-    Export:
-      Name:
-        Fn::Sub: "${AWS::StackName}-ComputeNodePoolSG"
+
+  {{ .ClusterNameOutputKey }}:
+    Value: "{{ .Cluster.Name }}"
+
+  {{ .LabelsOutputKey }}:
+    Value: "{{ .Labels }}"
+
+  {{ .InternalClusterOutputKey }}:
+    Value: "{{ .Cluster.Internal }}"
+
+  {{ .StackTypeOutputKey }}:
+    Value: {{ .StackType }}
 `
 	)
 
 	data := struct {
-		ClusterName string
-		Networks    []nodesNetwork
-		VpcID       string
+		Cluster                   model.Cluster
+		Networks                  []nodesNetwork
+		VpcID                     string
+		LabelsOutputKey           string
+		Labels                    string
+		ClusterNameOutputKey      string
+		StackTypeOutputKey        string
+		StackType                 string
+		InternalClusterOutputKey  string
+		AssetsBucketNameOutputKey string
 	}{
-		ClusterName: clusterName,
-		Networks:    networks,
-		VpcID:       vpcID,
+		Cluster:                   c,
+		Networks:                  networks,
+		VpcID:                     vpcID,
+		LabelsOutputKey:           labelsOutputKey,
+		Labels:                    util.LabelsToKVs(c.Labels),
+		ClusterNameOutputKey:      clusterNameOutputKey,
+		StackTypeOutputKey:        stackTypeOutputKey,
+		StackType:                 clusterInfraStackType,
+		InternalClusterOutputKey:  internalClusterOutputKey,
+		AssetsBucketNameOutputKey: assetsBucketNameOutputKey,
 	}
 
 	t := template.Must(template.New("cluster-infra-stack").Parse(clusterInfraStackTemplate))
@@ -193,7 +223,7 @@ Outputs:
 	return b.String(), nil
 }
 
-func renderELBStackTemplate(c model.Cluster, vpcID, clusterInfraStackName string) (string, error) {
+func renderELBStackTemplate(c model.Cluster, vpcID string) (string, error) {
 	const (
 		elbStackTemplate = `---
 Description: "Kubernetes cluster '{{ .Cluster.Name }}' ELB stack"
@@ -218,10 +248,10 @@ Resources:
           Value: "keto-{{ .Cluster.Name }}-kubeapi"
 
   # Allow ELB to talk to master node pool on 6443/tcp
-  ELBtoMasterNodePoolTrafficSG:
+  ELBtoMasterPoolTrafficSG:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      GroupId: !ImportValue "{{ .ClusterInfraStackName }}-MasterNodePoolSG"
+      GroupId: !ImportValue "{{ .ClusterInfraStackName }}-MasterPoolSG"
       IpProtocol: "6"
       SourceSecurityGroupId: !Ref ELBSG
       FromPort: "6443"
@@ -279,7 +309,7 @@ Resources:
 Outputs:
   ELB:
     Value: !Ref ELB
-  ELBDNS:
+  {{ .ELBDNSOutputKey }}:
     {{ if ne .Cluster.DNSZone "" }}Value: kube-{{ .Cluster.Name }}.{{ .Cluster.DNSZone }}{{ else }}Value: {'Fn::GetAtt': [ ELB, {{ if .Cluster.Internal }}DNSName}{{ else }}CanonicalHostedZoneName{{ end }} ]}{{ end }}
 `
 	)
@@ -288,13 +318,23 @@ Outputs:
 	sort.Strings(c.MasterPool.Networks)
 
 	data := struct {
-		Cluster               model.Cluster
-		VpcID                 string
-		ClusterInfraStackName string
+		Cluster                  model.Cluster
+		VpcID                    string
+		ClusterInfraStackName    string
+		ClusterNameOutputKey     string
+		StackTypeOutputKey       string
+		StackType                string
+		InternalClusterOutputKey string
+		ELBDNSOutputKey          string
 	}{
 		Cluster: c,
 		VpcID:   vpcID,
-		ClusterInfraStackName: clusterInfraStackName,
+		ClusterInfraStackName:    makeClusterInfraStackName(c.Name),
+		ClusterNameOutputKey:     clusterNameOutputKey,
+		StackTypeOutputKey:       stackTypeOutputKey,
+		StackType:                elbStackType,
+		InternalClusterOutputKey: internalClusterOutputKey,
+		ELBDNSOutputKey:          elbDNSOutputKey,
 	}
 
 	t := template.Must(template.New("elb-stack").Parse(elbStackTemplate))
@@ -307,16 +347,17 @@ Outputs:
 
 func renderMasterStackTemplate(
 	p model.MasterPool,
-	clusterInfraStackName string,
 	amiID string,
 	elbName string,
 	assetsBucketName string,
 	nodesPerSubnet map[string]int,
+	kubeAPIURL string,
+	stackName string,
 ) (string, error) {
 
 	const (
 		masterStackTemplate = `---
-Description: "Kubernetes cluster '{{ .MasterNodePool.ClusterName }}' master nodepool stack"
+Description: "Kubernetes cluster '{{ .MasterPool.ClusterName }}' master nodepool stack"
 
 Resources:
   InstanceRole:
@@ -342,7 +383,7 @@ Resources:
   RolePolicies:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: "kube-cluster-{{ .MasterNodePool.ClusterName }}-master-policy"
+      PolicyName: "kube-cluster-{{ .MasterPool.ClusterName }}-master-policy"
       Roles:
         - !Ref InstanceRole
       PolicyDocument:
@@ -362,6 +403,11 @@ Resources:
             Effect: Allow
             Action:
               - "s3:Get*"
+          - Resource:
+              - Fn::Sub: "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/{{ .StackName }}/*"
+            Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
           - Resource: "*"
             Effect: Allow
             Action:
@@ -401,7 +447,7 @@ Resources:
               - elasticloadbalancing:RegisterInstancesWithLoadBalancer
               - elasticloadbalancing:SetLoadBalancerPoliciesForBackendServer
 
-{{ $masterNodePool := .MasterNodePool -}}
+{{ $masterPool := .MasterPool -}}
 {{ $userData := .UserData -}}
 {{ $amiID := .AmiID -}}
 {{ $elbName := .ELBName -}}
@@ -422,30 +468,64 @@ Resources:
       MinSize: {{ $num }}
       Tags:
         - Key: Name
-          Value: "keto-{{ $masterNodePool.ClusterName }}-master"
+          Value: "keto-{{ $masterPool.ClusterName }}-master"
           PropagateAtLaunch: true
         - Key: KubernetesCluster
-          Value: "{{ $masterNodePool.ClusterName }}"
+          Value: "{{ $masterPool.ClusterName }}"
           PropagateAtLaunch: true
   LaunchConfiguration{{ rmdash $subnet }}:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      AssociatePublicIpAddress: {{ if $masterNodePool.Internal }}false{{ else }}true{{ end }}
+      AssociatePublicIpAddress: {{ if $masterPool.Internal }}false{{ else }}true{{ end }}
       IamInstanceProfile: !Ref InstanceProfile
       ImageId: "{{ $amiID }}"
       InstanceMonitoring: false
-      InstanceType: "{{ $masterNodePool.MachineType }}"
-      KeyName: "{{ $masterNodePool.SSHKey }}"
+      InstanceType: "{{ $masterPool.MachineType }}"
+      KeyName: "{{ $masterPool.SSHKey }}"
       SecurityGroups:
-        - !ImportValue "{{ $clusterInfraStackName }}-MasterNodePoolSG"
+        - !ImportValue "{{ $clusterInfraStackName }}-MasterPoolSG"
       BlockDeviceMappings:
         - DeviceName: "/dev/xvda"
           Ebs:
-            VolumeSize: "{{ $masterNodePool.DiskSize }}"
+            VolumeSize: "{{ $masterPool.DiskSize }}"
             DeleteOnTermination: true
             VolumeType: "gp2"
       UserData: {{ $userData }}
-  {{ end -}}
+{{ end -}}
+
+Outputs:
+  {{ .AssetsBucketNameOutputKey }}:
+    Value: {{ .AssetsBucketName }}
+
+  {{ .ClusterNameOutputKey }}:
+    Value: "{{ .MasterPool.ClusterName }}"
+
+  {{ .PoolNameOutputKey }}:
+    Value: "{{ .MasterPool.Name }}"
+
+  {{ .CoreOSVersionOutputKey }}:
+    Value: "{{ .MasterPool.CoreOSVersion }}"
+
+  {{ .KubeAPIURLOutputKey }}:
+    Value: "{{ .KubeAPIURL }}"
+
+  {{ .MachineTypeOutputKey }}:
+    Value: "{{ .MasterPool.MachineType }}"
+
+  {{ .KubeVersionOutputKey }}:
+    Value: "{{ .MasterPool.KubeVersion }}"
+
+  {{ .DiskSizeOutputKey }}:
+    Value: "{{ .MasterPool.DiskSize }}"
+
+  {{ .LabelsOutputKey }}:
+    Value: "{{ .Labels }}"
+
+  {{ .InternalClusterOutputKey }}:
+    Value: "{{ .MasterPool.Internal }}"
+
+  {{ .StackTypeOutputKey }}:
+    Value: {{ .StackType }}
 `
 	)
 
@@ -453,21 +533,51 @@ Resources:
 	sort.Strings(p.Networks)
 
 	data := struct {
-		MasterNodePool        model.MasterPool
-		ClusterInfraStackName string
-		AmiID                 string
-		ELBName               string
-		UserData              string
-		AssetsBucketName      string
-		NodesPerSubnet        map[string]int
+		MasterPool                model.MasterPool
+		ClusterInfraStackName     string
+		StackName                 string
+		AmiID                     string
+		ELBName                   string
+		UserData                  string
+		NodesPerSubnet            map[string]int
+		KubeAPIURL                string
+		LabelsOutputKey           string
+		Labels                    string
+		ClusterNameOutputKey      string
+		PoolNameOutputKey         string
+		CoreOSVersionOutputKey    string
+		StackTypeOutputKey        string
+		StackType                 string
+		InternalClusterOutputKey  string
+		AssetsBucketNameOutputKey string
+		AssetsBucketName          string
+		KubeAPIURLOutputKey       string
+		MachineTypeOutputKey      string
+		KubeVersionOutputKey      string
+		DiskSizeOutputKey         string
 	}{
-		MasterNodePool:        p,
-		ClusterInfraStackName: clusterInfraStackName,
-		AmiID:            amiID,
-		ELBName:          elbName,
-		UserData:         base64.StdEncoding.EncodeToString(p.UserData),
-		AssetsBucketName: assetsBucketName,
-		NodesPerSubnet:   nodesPerSubnet,
+		MasterPool:                p,
+		ClusterInfraStackName:     makeClusterInfraStackName(p.ClusterName),
+		StackName:                 stackName,
+		AmiID:                     amiID,
+		ELBName:                   elbName,
+		UserData:                  base64.StdEncoding.EncodeToString(p.UserData),
+		NodesPerSubnet:            nodesPerSubnet,
+		KubeAPIURL:                kubeAPIURL,
+		LabelsOutputKey:           labelsOutputKey,
+		Labels:                    util.LabelsToKVs(p.Labels),
+		ClusterNameOutputKey:      clusterNameOutputKey,
+		CoreOSVersionOutputKey:    coreOSVersionOutputKey,
+		PoolNameOutputKey:         poolNameOutputKey,
+		StackTypeOutputKey:        stackTypeOutputKey,
+		StackType:                 masterPoolStackType,
+		InternalClusterOutputKey:  internalClusterOutputKey,
+		AssetsBucketNameOutputKey: assetsBucketNameOutputKey,
+		AssetsBucketName:          assetsBucketName,
+		KubeAPIURLOutputKey:       kubeAPIURLOutputKey,
+		MachineTypeOutputKey:      machineTypeOutputKey,
+		KubeVersionOutputKey:      kubeVersionOutputKey,
+		DiskSizeOutputKey:         diskSizeOutputKey,
 	}
 
 	funcMap := template.FuncMap{
@@ -487,13 +597,14 @@ Resources:
 
 func renderComputeStackTemplate(
 	p model.ComputePool,
-	clusterInfraStackName string,
 	amiID string,
+	kubeAPIURL string,
+	stackName string,
 ) (string, error) {
 
 	const (
 		computeStackTemplate = `---
-Description: "Kubernetes cluster '{{ .ComputeNodePool.ClusterName }}' compute nodepool stack"
+Description: "Kubernetes cluster '{{ .ComputePool.ClusterName }}' compute nodepool stack"
 
 Resources:
   InstanceRole:
@@ -519,7 +630,7 @@ Resources:
   RolePolicies:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: "kube-cluster-{{ .ComputeNodePool.ClusterName }}-compute-policy"
+      PolicyName: "kube-cluster-{{ .ComputePool.ClusterName }}-compute-policy"
       Roles:
         - !Ref InstanceRole
       PolicyDocument:
@@ -531,45 +642,81 @@ Resources:
               - ec2:DescribeInstances
               - ec2:DescribeTags
               - ec2:DescribeVpcs
+          - Resource:
+              - Fn::Sub: "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/{{ .StackName }}/*"
+            Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
 
   ASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       LaunchConfigurationName: !Ref LaunchConfiguration
       VPCZoneIdentifier:
-{{- range $index, $subnet := .ComputeNodePool.Networks }}
+{{- range $index, $subnet := .ComputePool.Networks }}
         - "{{ $subnet }}"
 {{- end }}
       TerminationPolicies:
         - 'OldestInstance'
         - 'Default'
       MaxSize: 100
-      MinSize: {{ .ComputeNodePool.Size }}
+      MinSize: {{ .ComputePool.Size }}
       Tags:
         - Key: Name
-          Value: "keto-{{ .ComputeNodePool.ClusterName }}-{{ .ComputeNodePool.Name }}"
+          Value: "keto-{{ .ComputePool.ClusterName }}-{{ .ComputePool.Name }}"
           PropagateAtLaunch: true
         - Key: KubernetesCluster
-          Value: "{{ .ComputeNodePool.ClusterName }}"
+          Value: "{{ .ComputePool.ClusterName }}"
           PropagateAtLaunch: true
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      AssociatePublicIpAddress: {{ if .ComputeNodePool.Internal }}false{{ else }}true{{ end }}
+      AssociatePublicIpAddress: {{ if .ComputePool.Internal }}false{{ else }}true{{ end }}
       IamInstanceProfile: !Ref InstanceProfile
       ImageId: "{{ .AmiID }}"
       InstanceMonitoring: false
-      InstanceType: "{{ .ComputeNodePool.MachineType }}"
-      KeyName: "{{ .ComputeNodePool.SSHKey }}"
+      InstanceType: "{{ .ComputePool.MachineType }}"
+      KeyName: "{{ .ComputePool.SSHKey }}"
       SecurityGroups:
-        - !ImportValue "{{ .ClusterInfraStackName }}-ComputeNodePoolSG"
+        - !ImportValue "{{ .ClusterInfraStackName }}-ComputePoolSG"
       BlockDeviceMappings:
         - DeviceName: "/dev/xvda"
           Ebs:
-            VolumeSize: "{{ .ComputeNodePool.DiskSize }}"
+            VolumeSize: "{{ .ComputePool.DiskSize }}"
             DeleteOnTermination: true
             VolumeType: "gp2"
       UserData: {{ .UserData }}
+
+Outputs:
+  {{ .ClusterNameOutputKey }}:
+    Value: "{{ .ComputePool.ClusterName }}"
+
+  {{ .PoolNameOutputKey }}:
+    Value: "{{ .ComputePool.Name }}"
+
+  {{ .CoreOSVersionOutputKey }}:
+    Value: "{{ .ComputePool.CoreOSVersion }}"
+
+  {{ .KubeAPIURLOutputKey }}:
+    Value: "{{ .KubeAPIURL }}"
+
+  {{ .MachineTypeOutputKey }}:
+    Value: "{{ .ComputePool.MachineType }}"
+
+  {{ .KubeVersionOutputKey }}:
+    Value: "{{ .ComputePool.KubeVersion }}"
+
+  {{ .DiskSizeOutputKey }}:
+    Value: "{{ .ComputePool.DiskSize }}"
+
+  {{ .LabelsOutputKey }}:
+    Value: "{{ .Labels }}"
+
+  {{ .InternalClusterOutputKey }}:
+    Value: "{{ .ComputePool.Internal }}"
+
+  {{ .StackTypeOutputKey }}:
+    Value: {{ .StackType }}
 `
 	)
 
@@ -577,15 +724,43 @@ Resources:
 	sort.Strings(p.Networks)
 
 	data := struct {
-		ComputeNodePool       model.ComputePool
-		ClusterInfraStackName string
-		AmiID                 string
-		UserData              string
+		ComputePool              model.ComputePool
+		ClusterInfraStackName    string
+		StackName                string
+		AmiID                    string
+		UserData                 string
+		KubeAPIURL               string
+		LabelsOutputKey          string
+		Labels                   string
+		ClusterNameOutputKey     string
+		PoolNameOutputKey        string
+		CoreOSVersionOutputKey   string
+		StackTypeOutputKey       string
+		StackType                string
+		InternalClusterOutputKey string
+		KubeAPIURLOutputKey      string
+		MachineTypeOutputKey     string
+		KubeVersionOutputKey     string
+		DiskSizeOutputKey        string
 	}{
-		ComputeNodePool:       p,
-		ClusterInfraStackName: clusterInfraStackName,
-		AmiID:    amiID,
-		UserData: base64.StdEncoding.EncodeToString(p.UserData),
+		ComputePool:              p,
+		ClusterInfraStackName:    makeClusterInfraStackName(p.ClusterName),
+		StackName:                stackName,
+		AmiID:                    amiID,
+		UserData:                 base64.StdEncoding.EncodeToString(p.UserData),
+		KubeAPIURL:               kubeAPIURL,
+		LabelsOutputKey:          labelsOutputKey,
+		Labels:                   util.LabelsToKVs(p.Labels),
+		ClusterNameOutputKey:     clusterNameOutputKey,
+		CoreOSVersionOutputKey:   coreOSVersionOutputKey,
+		PoolNameOutputKey:        poolNameOutputKey,
+		StackTypeOutputKey:       stackTypeOutputKey,
+		StackType:                computePoolStackType,
+		InternalClusterOutputKey: internalClusterOutputKey,
+		KubeAPIURLOutputKey:      kubeAPIURLOutputKey,
+		MachineTypeOutputKey:     machineTypeOutputKey,
+		KubeVersionOutputKey:     kubeVersionOutputKey,
+		DiskSizeOutputKey:        diskSizeOutputKey,
 	}
 
 	t := template.Must(template.New("compute-stack").Parse(computeStackTemplate))

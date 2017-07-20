@@ -45,8 +45,14 @@ func TestRenderClusterInfraStackTemplate(t *testing.T) {
 	}
 
 	networks := getNodesDistributionAcrossNetworks(subnets)
+	cluster := model.Cluster{
+		ResourceMeta: model.ResourceMeta{
+			Name:     "foo",
+			Internal: false,
+		},
+	}
 
-	s, err := renderClusterInfraStackTemplate("foo", vpc, networks)
+	s, err := renderClusterInfraStackTemplate(cluster, vpc, networks)
 	if err != nil {
 		t.Error(err)
 	}
@@ -63,7 +69,7 @@ func TestRenderELBStackTemplate(t *testing.T) {
 		},
 	}
 
-	s, err := renderELBStackTemplate(c, vpc, "infra-foo-stack")
+	s, err := renderELBStackTemplate(c, vpc)
 	if err != nil {
 		t.Error(err)
 	}
@@ -84,7 +90,7 @@ func TestRenderMasterStackTemplate(t *testing.T) {
 		},
 	}
 
-	s, err := renderMasterStackTemplate(pool, "infra-foo-stack", ami, "myelb", "assets-bucket", nodesPerSubnet)
+	s, err := renderMasterStackTemplate(pool, ami, "myelb", "assets-bucket", nodesPerSubnet, "https://kube", "mystack")
 	if err != nil {
 		t.Error(err)
 	}
@@ -99,7 +105,7 @@ func TestRenderComputeStackTemplate(t *testing.T) {
 		},
 	}
 
-	s, err := renderComputeStackTemplate(pool, "infra-foo-stack", ami)
+	s, err := renderComputeStackTemplate(pool, "infra-foo-stack", ami, "mystack")
 	if err != nil {
 		t.Error(err)
 	}

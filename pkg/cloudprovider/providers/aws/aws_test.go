@@ -29,7 +29,6 @@ import (
 	"testing"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider/providers/aws/mocks"
-	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/model"
 	"github.com/UKHomeOffice/keto/testutil"
 
@@ -167,16 +166,22 @@ func TestGetClusters(t *testing.T) {
 					Value: aws.String(managedByKetoTagValue),
 				},
 				{
-					Key:   aws.String(constants.ClusterNameLabelKey),
+					Key:   aws.String(clusterNameTagKey),
 					Value: aws.String("foo"),
 				},
+			},
+			Outputs: []*cloudformation.Output{
 				{
-					Key:   aws.String(stackTypeTagKey),
-					Value: aws.String(clusterInfraStackType),
+					OutputKey:   aws.String(stackTypeOutputKey),
+					OutputValue: aws.String(clusterInfraStackType),
 				},
 				{
-					Key:   aws.String(internalClusterTagKey),
-					Value: aws.String("true"),
+					OutputKey:   aws.String(internalClusterOutputKey),
+					OutputValue: aws.String("true"),
+				},
+				{
+					OutputKey:   aws.String(clusterNameOutputKey),
+					OutputValue: aws.String("foo"),
 				},
 			},
 		},
@@ -188,12 +193,18 @@ func TestGetClusters(t *testing.T) {
 					Value: aws.String(managedByKetoTagValue),
 				},
 				{
-					Key:   aws.String(constants.ClusterNameLabelKey),
+					Key:   aws.String(clusterNameTagKey),
 					Value: aws.String("bar"),
 				},
+			},
+			Outputs: []*cloudformation.Output{
 				{
-					Key:   aws.String(stackTypeTagKey),
-					Value: aws.String(clusterInfraStackType),
+					OutputKey:   aws.String(stackTypeOutputKey),
+					OutputValue: aws.String(clusterInfraStackType),
+				},
+				{
+					OutputKey:   aws.String(clusterNameOutputKey),
+					OutputValue: aws.String("bar"),
 				},
 			},
 		},
@@ -237,16 +248,26 @@ func TestDeleteComputePool(t *testing.T) {
 					Value: aws.String(managedByKetoTagValue),
 				},
 				{
-					Key:   aws.String(constants.ClusterNameLabelKey),
+					Key:   aws.String(clusterNameTagKey),
 					Value: aws.String("foo"),
 				},
+			},
+			Outputs: []*cloudformation.Output{
 				{
-					Key:   aws.String(constants.PoolNameLabelKey),
-					Value: aws.String("compute"),
+					OutputKey:   aws.String(stackTypeOutputKey),
+					OutputValue: aws.String(computePoolStackType),
 				},
 				{
-					Key:   aws.String(stackTypeTagKey),
-					Value: aws.String(computePoolStackType),
+					OutputKey:   aws.String(internalClusterOutputKey),
+					OutputValue: aws.String("true"),
+				},
+				{
+					OutputKey:   aws.String(clusterNameOutputKey),
+					OutputValue: aws.String("foo"),
+				},
+				{
+					OutputKey:   aws.String(poolNameOutputKey),
+					OutputValue: aws.String("compute"),
 				},
 			},
 		},
@@ -290,7 +311,7 @@ func TestCreateMasterPool(t *testing.T) {
 				Values: []*string{aws.String(managedByKetoTagValue)},
 			},
 			{
-				Name:   aws.String("tag:" + constants.ClusterNameLabelKey),
+				Name:   aws.String("tag:" + clusterNameTagKey),
 				Values: []*string{aws.String(clusterName)},
 			},
 		},

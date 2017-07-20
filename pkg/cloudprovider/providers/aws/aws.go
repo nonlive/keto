@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
-	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/model"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -56,8 +55,9 @@ const (
 	// resources are managed by keto.
 	managedByKetoTagKey   = "managed-by-keto"
 	managedByKetoTagValue = "true"
-	machineTypeTagKey     = "machine-type"
-	diskSizeTagKey        = "disk-size"
+
+	clusterNameTagKey = "cluster-name"
+	stackTypeTagKey   = "stack-type"
 
 	etcdCACertObjectName = "etcd_ca.crt"
 	etcdCAKeyObjectName  = "etcd_ca.key"
@@ -146,30 +146,30 @@ func (c *Cloud) GetClusters(name string) ([]*model.Cluster, error) {
 outer:
 	for _, s := range stacks {
 		c := &model.Cluster{}
-		for _, tag := range s.Tags {
-			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value != "" {
-				// if filtered by cluster name and the stack tag does not
+		for _, o := range s.Outputs {
+			if *o.OutputKey == clusterNameOutputKey && *o.OutputValue != "" {
+				// if filtered by cluster name and the stack output key does not
 				// match it, skip over the stack
-				if name != "" && *tag.Value != name {
+				if name != "" && *o.OutputValue != name {
 					continue outer
 				}
-				c.Name = *tag.Value
+				c.Name = *o.OutputValue
 			}
 		}
 
-		c.Internal = clusterInternal(s.Tags)
+		c.Internal = clusterInternal(s.Outputs)
 		c.Labels = getStackLabels(s)
 		clusters = append(clusters, c)
 	}
 	return clusters, nil
 }
 
-// clusterInternal checks whether a given list of tags contains a
-// internalClusterTagKey and returns its value as a bool.
-func clusterInternal(tags []*cloudformation.Tag) bool {
-	for _, tag := range tags {
-		if *tag.Key == internalClusterTagKey && tag.Value != nil {
-			internal, err := strconv.ParseBool(*tag.Value)
+// clusterInternal checks whether a given list of stack Outputs contains a
+// internalClusterOutputKey and returns its value as a bool.
+func clusterInternal(outputs []*cloudformation.Output) bool {
+	for _, o := range outputs {
+		if *o.OutputKey == internalClusterOutputKey && o.OutputValue != nil {
+			internal, err := strconv.ParseBool(*o.OutputValue)
 			if err != nil {
 				return false
 			}
@@ -338,7 +338,7 @@ func (c Cloud) describePersistentENIs(clusterName string) ([]*ec2.NetworkInterfa
 				Values: []*string{aws.String(managedByKetoTagValue)},
 			},
 			{
-				Name:   aws.String("tag:" + constants.ClusterNameLabelKey),
+				Name:   aws.String("tag:" + clusterNameTagKey),
 				Values: []*string{aws.String(clusterName)},
 			},
 		},
@@ -514,30 +514,30 @@ func (c *Cloud) GetMasterPools(clusterName, name string) ([]*model.MasterPool, e
 outer:
 	for _, s := range stacks {
 		p := &model.MasterPool{}
-		for _, tag := range s.Tags {
-			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value != "" {
-				if clusterName != "" && *tag.Value != clusterName {
+		for _, o := range s.Outputs {
+			if *o.OutputKey == clusterNameOutputKey && *o.OutputValue != "" {
+				if clusterName != "" && *o.OutputValue != clusterName {
 					continue outer
 				}
-				p.ClusterName = *tag.Value
+				p.ClusterName = *o.OutputValue
 			}
-			if *tag.Key == constants.PoolNameLabelKey && *tag.Value != "" {
-				if name != "" && *tag.Value != name {
+			if *o.OutputKey == poolNameOutputKey && *o.OutputValue != "" {
+				if name != "" && *o.OutputValue != name {
 					continue outer
 				}
-				p.Name = *tag.Value
+				p.Name = *o.OutputValue
 			}
-			if *tag.Key == kubeVersionTagKey {
-				p.KubeVersion = *tag.Value
+			if *o.OutputKey == kubeVersionOutputKey {
+				p.KubeVersion = *o.OutputValue
 			}
-			if *tag.Key == coreOSVersionTagKey {
-				p.CoreOSVersion = *tag.Value
+			if *o.OutputKey == coreOSVersionOutputKey {
+				p.CoreOSVersion = *o.OutputValue
 			}
-			if *tag.Key == machineTypeTagKey {
-				p.MachineType = *tag.Value
+			if *o.OutputKey == machineTypeOutputKey {
+				p.MachineType = *o.OutputValue
 			}
-			if *tag.Key == diskSizeTagKey {
-				i, err := strconv.Atoi(*tag.Value)
+			if *o.OutputKey == diskSizeOutputKey {
+				i, err := strconv.Atoi(*o.OutputValue)
 				if err != nil {
 					return pools, err
 				}
@@ -565,30 +565,30 @@ func (c *Cloud) GetComputePools(clusterName, name string) ([]*model.ComputePool,
 outer:
 	for _, s := range stacks {
 		p := &model.ComputePool{}
-		for _, tag := range s.Tags {
-			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value != "" {
-				if clusterName != "" && *tag.Value != clusterName {
+		for _, o := range s.Outputs {
+			if *o.OutputKey == clusterNameOutputKey && *o.OutputValue != "" {
+				if clusterName != "" && *o.OutputValue != clusterName {
 					continue outer
 				}
-				p.ClusterName = *tag.Value
+				p.ClusterName = *o.OutputValue
 			}
-			if *tag.Key == constants.PoolNameLabelKey && *tag.Value != "" {
-				if name != "" && *tag.Value != name {
+			if *o.OutputKey == poolNameOutputKey && *o.OutputValue != "" {
+				if name != "" && *o.OutputValue != name {
 					continue outer
 				}
-				p.Name = *tag.Value
+				p.Name = *o.OutputValue
 			}
-			if *tag.Key == kubeVersionTagKey {
-				p.KubeVersion = *tag.Value
+			if *o.OutputKey == kubeVersionOutputKey {
+				p.KubeVersion = *o.OutputValue
 			}
-			if *tag.Key == coreOSVersionTagKey {
-				p.CoreOSVersion = *tag.Value
+			if *o.OutputKey == coreOSVersionOutputKey {
+				p.CoreOSVersion = *o.OutputValue
 			}
-			if *tag.Key == machineTypeTagKey {
-				p.MachineType = *tag.Value
+			if *o.OutputKey == machineTypeOutputKey {
+				p.MachineType = *o.OutputValue
 			}
-			if *tag.Key == diskSizeTagKey {
-				i, err := strconv.Atoi(*tag.Value)
+			if *o.OutputKey == diskSizeOutputKey {
+				i, err := strconv.Atoi(*o.OutputValue)
 				if err != nil {
 					return pools, err
 				}
@@ -620,8 +620,8 @@ func (c *Cloud) DeleteMasterPool(clusterName string) error {
 	}
 
 	for _, s := range stacks {
-		for _, tag := range s.Tags {
-			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value == clusterName {
+		for _, o := range s.Outputs {
+			if *o.OutputKey == clusterNameOutputKey && *o.OutputValue == clusterName {
 				if err := c.deleteStack(*s.StackId); err != nil {
 					return err
 				}
@@ -639,18 +639,18 @@ func (c *Cloud) DeleteComputePool(clusterName, name string) error {
 		return err
 	}
 
-	matched := func(tags []*cloudformation.Tag) bool {
+	matched := func(outputs []*cloudformation.Output) bool {
 		n := 0
-		for _, tag := range tags {
-			if *tag.Key == constants.ClusterNameLabelKey && *tag.Value == clusterName {
+		for _, o := range outputs {
+			if *o.OutputKey == clusterNameOutputKey && *o.OutputValue == clusterName {
 				n++
 			}
 			if name != "" {
-				if *tag.Key == constants.PoolNameLabelKey && *tag.Value == name {
+				if *o.OutputKey == poolNameOutputKey && *o.OutputValue == name {
 					n++
 				}
 			}
-			if name == "" && *tag.Key == constants.PoolNameLabelKey {
+			if name == "" && *o.OutputKey == poolNameOutputKey {
 				n++
 			}
 		}
@@ -658,7 +658,7 @@ func (c *Cloud) DeleteComputePool(clusterName, name string) error {
 	}
 
 	for _, s := range stacks {
-		if matched(s.Tags) {
+		if matched(s.Outputs) {
 			if err := c.deleteStack(*s.StackId); err != nil {
 				return err
 			}
@@ -773,18 +773,6 @@ func (c Cloud) getResourceTagValue(resourceID, key string) (string, error) {
 		}
 	}
 	return "", nil
-}
-
-func tagReserved(s string) bool {
-	if strings.HasPrefix(s, "aws:") {
-		return true
-	}
-	for _, i := range stackTagsNotLabels {
-		if s == i {
-			return true
-		}
-	}
-	return false
 }
 
 // init registers AWS cloud with the cloudprovider.
