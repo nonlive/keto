@@ -25,3 +25,35 @@ pipeline:
       - ./bin/keto_test_e2e.sh
     when:
       event: deployment
+  
+  git_push_latest_tag:
+    image: plugins/git
+    commands:
+      - git tag latest
+      - git push -f origin latest
+    when:
+      event: push
+      branch: master
+
+  build_binaries:
+    image: golang:1.8
+    commands:
+      - mkdir -p bin
+      - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/keto_linux_amd64 ./cmd/keto
+      - GOOS=linux GOARCH=386 CGO_ENABLED=0 go build -o bin/keto_linux_386 ./cmd/keto
+      - GOOS=linux GOARCH=arm CGO_ENABLED=0 go build -o bin/keto_linux_arm ./cmd/keto
+      - GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o bin/keto_darwin_amd64 ./cmd/keto
+      - GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o bin/keto_windows_amd64.exe ./cmd/keto
+    when:
+      event: tag
+
+  publish_release:
+    image: plugins/github-release
+    files:
+      - bin/keto_linux_amd64
+      - bin/keto_linux_386
+      - bin/keto_linux_arm
+      - bin/keto_darwin_amd64
+      - bin/keto_windows_amd64.exe
+    when:
+      event: tag
