@@ -19,10 +19,10 @@ package keto
 import (
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"text/tabwriter"
 
+	"github.com/UKHomeOffice/keto/pkg/keto/util"
 	"github.com/UKHomeOffice/keto/pkg/model"
 )
 
@@ -52,7 +52,7 @@ func PrintClusters(w *tabwriter.Writer, clusters []*model.Cluster, headers bool)
 		data = append(data, clusterColumns)
 	}
 	for _, c := range clusters {
-		labels := labelsToKVs(c.Labels)
+		labels := util.LabelsToKVs(c.Labels)
 		data = append(data, []string{c.Name, labels})
 	}
 	fmt.Fprintln(w, formatData(data))
@@ -67,7 +67,7 @@ func PrintMasterPool(w *tabwriter.Writer, pools []*model.MasterPool, headers boo
 		data = append(data, nodePoolColumns)
 	}
 	for _, p := range pools {
-		labels := labelsToKVs(p.Labels)
+		labels := util.LabelsToKVs(p.Labels)
 		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.CoreOSVersion, p.MachineType, labels})
 	}
 	fmt.Fprintln(w, formatData(data))
@@ -82,22 +82,11 @@ func PrintComputePool(w *tabwriter.Writer, pools []*model.ComputePool, headers b
 		data = append(data, nodePoolColumns)
 	}
 	for _, p := range pools {
-		labels := labelsToKVs(p.Labels)
+		labels := util.LabelsToKVs(p.Labels)
 		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.CoreOSVersion, p.MachineType, labels})
 	}
 	fmt.Fprintln(w, formatData(data))
 	return w.Flush()
-}
-
-// labelsToKVs returns a string of labels in k=v,k=v format as a string.
-func labelsToKVs(m model.Labels) string {
-	s := []string{}
-
-	for k, v := range m {
-		s = append(s, fmt.Sprintf("%s=%s", k, v))
-	}
-	sort.Strings(s)
-	return strings.Join(s, ",")
 }
 
 // formatData formats data of slices of string slices ready for tabwriter.
