@@ -23,8 +23,8 @@ import (
 	"os"
 	"path"
 	"strconv"
-	"strings"
 
+	"github.com/UKHomeOffice/keto/pkg/keto/util"
 	"github.com/UKHomeOffice/keto/pkg/model"
 
 	"github.com/spf13/cobra"
@@ -125,7 +125,7 @@ func createClusterCmdFunc(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	cluster.Labels = kvsTolabels(labels)
+	cluster.Labels = util.KVsToLabels(labels)
 
 	p, err := makeMasterPool("master", name, *c)
 	if err != nil {
@@ -293,7 +293,7 @@ func makeMasterPool(name, clusterName string, c cobra.Command) (model.MasterPool
 	if err != nil {
 		return p, err
 	}
-	p.Labels = kvsTolabels(labels)
+	p.Labels = util.KVsToLabels(labels)
 
 	p.Name = name
 	p.ClusterName = clusterName
@@ -382,7 +382,7 @@ func makeComputePool(name, clusterName string, c cobra.Command) (model.ComputePo
 	if err != nil {
 		return p, err
 	}
-	p.Labels = kvsTolabels(labels)
+	p.Labels = util.KVsToLabels(labels)
 
 	p.Name = name
 	p.ClusterName = clusterName
@@ -394,17 +394,6 @@ func makeComputePool(name, clusterName string, c cobra.Command) (model.ComputePo
 	p.MachineType = machineType
 	p.Size = size
 	return p, nil
-}
-
-func kvsTolabels(kvs []string) model.Labels {
-	labels := model.Labels{}
-	for _, kv := range kvs {
-		s := strings.SplitN(kv, "=", 2)
-		if len(s) == 2 {
-			labels[s[0]] = s[1]
-		}
-	}
-	return labels
 }
 
 func init() {

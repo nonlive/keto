@@ -47,9 +47,11 @@ func TestGetStacksByType(t *testing.T) {
 					Key:   aws.String(managedByKetoTagKey),
 					Value: aws.String(managedByKetoTagValue),
 				},
+			},
+			Outputs: []*cloudformation.Output{
 				{
-					Key:   aws.String(stackTypeTagKey),
-					Value: aws.String(masterPoolStackType),
+					OutputKey:   aws.String(stackTypeOutputKey),
+					OutputValue: aws.String(masterPoolStackType),
 				},
 			},
 		},
@@ -60,18 +62,20 @@ func TestGetStacksByType(t *testing.T) {
 					Key:   aws.String(managedByKetoTagKey),
 					Value: aws.String(managedByKetoTagValue),
 				},
+			},
+			Outputs: []*cloudformation.Output{
 				{
-					Key:   aws.String(stackTypeTagKey),
-					Value: aws.String(computePoolStackType),
+					OutputKey:   aws.String(stackTypeOutputKey),
+					OutputValue: aws.String(computePoolStackType),
 				},
 			},
 		},
 		{
 			StackName: aws.String("compute-2"),
-			Tags: []*cloudformation.Tag{
+			Outputs: []*cloudformation.Output{
 				{
-					Key:   aws.String(stackTypeTagKey),
-					Value: aws.String(computePoolStackType),
+					OutputKey:   aws.String(stackTypeOutputKey),
+					OutputValue: aws.String(computePoolStackType),
 				},
 			},
 		},
@@ -98,23 +102,19 @@ func TestGetStacksByType(t *testing.T) {
 func TestGetStackLabels(t *testing.T) {
 	cases := []struct {
 		name  string
-		input []*cloudformation.Tag
+		input []*cloudformation.Output
 		want  model.Labels
 	}{
 		{
-			"label foo=bar, ignoring reserved labels",
-			[]*cloudformation.Tag{
+			"label foo=bar",
+			[]*cloudformation.Output{
 				{
-					Key:   aws.String(managedByKetoTagKey),
-					Value: aws.String(managedByKetoTagValue),
+					OutputKey:   aws.String(stackTypeOutputKey),
+					OutputValue: aws.String(computePoolStackType),
 				},
 				{
-					Key:   aws.String(stackTypeTagKey),
-					Value: aws.String(computePoolStackType),
-				},
-				{
-					Key:   aws.String("foo"),
-					Value: aws.String("bar"),
+					OutputKey:   aws.String(labelsOutputKey),
+					OutputValue: aws.String("foo=bar"),
 				},
 			},
 			model.Labels{"foo": "bar"},
@@ -123,7 +123,7 @@ func TestGetStackLabels(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := getStackLabels(&cloudformation.Stack{Tags: c.input})
+			got := getStackLabels(&cloudformation.Stack{Outputs: c.input})
 			if !reflect.DeepEqual(got, c.want) {
 				t.Errorf("got %#v; want %#v", got, c.want)
 			}

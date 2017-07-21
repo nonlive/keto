@@ -98,8 +98,6 @@ func (c *Controller) CreateCluster(cluster model.Cluster, assets model.Assets) e
 	if cluster.Labels == nil {
 		cluster.Labels = model.Labels{}
 	}
-	// Set default cluster labels.
-	cluster.Labels[constants.ClusterNameLabelKey] = cluster.Name
 
 	c.Logger.Printf("creating cluster %q infrastructure", cluster.Name)
 	if err := cl.CreateClusterInfra(cluster); err != nil {

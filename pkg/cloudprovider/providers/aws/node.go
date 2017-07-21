@@ -1,14 +1,17 @@
 package aws
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
-	"github.com/UKHomeOffice/keto/pkg/constants"
+	"github.com/UKHomeOffice/keto/pkg/keto/util"
 	"github.com/UKHomeOffice/keto/pkg/model"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
 )
 
 // Node returns an implementation of Node interface for AWS Cloud.
@@ -19,39 +22,28 @@ func (c *Cloud) Node() (cloudprovider.Node, bool) {
 // GetNodeData returns model.NodeData which contains information like node
 // labels, kube version, etc.
 func (c Cloud) GetNodeData() (model.NodeData, error) {
-	metadata, err := getInstanceMetadata()
+	var data model.NodeData
+
+	outputs, err := c.getNodeStackOutputs()
 	if err != nil {
-		return model.NodeData{}, err
+		return data, err
 	}
 
-	tags, err := c.getInstanceTags(metadata.InstanceID)
-	if err != nil {
-		return model.NodeData{}, err
+	// Extract fields from stack outputs.
+	for _, o := range outputs {
+		if *o.OutputKey == kubeAPIURLOutputKey {
+			data.KubeAPIURL = *o.OutputValue
+		}
+		if *o.OutputKey == clusterNameOutputKey {
+			data.ClusterName = *o.OutputValue
+		}
+		if *o.OutputKey == kubeVersionOutputKey {
+			data.KubeVersion = *o.OutputValue
+		}
+		if *o.OutputKey == labelsOutputKey {
+			data.Labels = util.KVsToLabels(strings.Split(*o.OutputValue, "="))
+		}
 	}
-
-	data := model.NodeData{}
-	labels := model.Labels{}
-
-	for _, t := range tags {
-		if *t.Key == kubeAPIURLTagKey {
-			data.KubeAPIURL = *t.Value
-		}
-
-		if *t.Key == constants.ClusterNameLabelKey {
-			data.ClusterName = *t.Value
-		}
-
-		if *t.Key == kubeVersionTagKey {
-			data.KubeVersion = *t.Value
-		}
-
-		// Skip over reserved tags.
-		if tagReserved(*t.Key) {
-			continue
-		}
-		labels[*t.Key] = *t.Value
-	}
-	data.Labels = labels
 
 	return data, nil
 }
@@ -66,37 +58,21 @@ func getInstanceMetadata() (ec2metadata.EC2InstanceIdentityDocument, error) {
 	return metadataService.GetInstanceIdentityDocument()
 }
 
-func (c Cloud) getInstanceTags(id string) ([]*ec2.TagDescription, error) {
-	params := &ec2.DescribeTagsInput{
-		Filters: []*ec2.Filter{
-			{
-				Name: aws.String("resource-id"),
-				Values: []*string{
-					aws.String(id),
-				},
-			},
-		},
-	}
-
-	resp, err := c.ec2.DescribeTags(params)
-	if err != nil {
-		return resp.Tags, err
-	}
-
-	return resp.Tags, nil
-}
-
 // GetAssets gets assets from a cloud.
 func (c *Cloud) GetAssets() (model.Assets, error) {
-	a := model.Assets{}
+	var a model.Assets
 
-	metadata, err := getInstanceMetadata()
+	outputs, err := c.getNodeStackOutputs()
 	if err != nil {
 		return a, err
 	}
-	bucket, err := c.getResourceTagValue(metadata.InstanceID, assetsBucketNameTagKey)
-	if err != nil {
-		return a, err
+
+	var bucket string
+	for _, o := range outputs {
+		if *o.OutputKey == assetsBucketNameOutputKey {
+			bucket = *o.OutputValue
+			break
+		}
 	}
 
 	etcdCACert, err := c.getS3Object(bucket, etcdCACertObjectName)
@@ -122,4 +98,27 @@ func (c *Cloud) GetAssets() (model.Assets, error) {
 	a.KubeCACert = kubeCACert
 
 	return a, nil
+}
+
+// Returns cloudformation stack outputs. It is the stack that the node was
+// created by. Should only be used from a node.
+func (c Cloud) getNodeStackOutputs() ([]*cloudformation.Output, error) {
+	var outputs []*cloudformation.Output
+
+	metadata, err := getInstanceMetadata()
+	if err != nil {
+		return outputs, err
+	}
+
+	stackName, err := c.getResourceTagValue(metadata.InstanceID, "aws:cloudformation:stack-name")
+	if err != nil {
+		return outputs, fmt.Errorf("aws:cloudformation:stack-name tag not found")
+	}
+
+	stack, err := c.getStack(stackName)
+	if err != nil {
+		return outputs, fmt.Errorf("failed to describe %q stack: %v", stackName, err)
+	}
+
+	return stack.Outputs, nil
 }

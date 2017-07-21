@@ -19,10 +19,10 @@ package aws
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/UKHomeOffice/keto/pkg/keto/util"
 	"github.com/UKHomeOffice/keto/pkg/model"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 
@@ -35,12 +35,19 @@ const (
 	blueStack  = "blue"
 	greenStack = "green"
 
-	stackTypeTagKey        = "stack-type"
-	coreOSVersionTagKey    = "coreos-version"
-	kubeVersionTagKey      = "kube-version"
-	kubeAPIURLTagKey       = "kube-api-url"
-	assetsBucketNameTagKey = "assets-bucket-name"
-	internalClusterTagKey  = "internal-cluster"
+	// Stack Outputs key names.
+	stackTypeOutputKey        = "StackType"
+	clusterNameOutputKey      = "ClusterName"
+	poolNameOutputKey         = "PoolName"
+	coreOSVersionOutputKey    = "CoreOSVersion"
+	kubeVersionOutputKey      = "KubeVersion"
+	kubeAPIURLOutputKey       = "KubeAPIURL"
+	machineTypeOutputKey      = "MachineType"
+	diskSizeOutputKey         = "DiskSize"
+	assetsBucketNameOutputKey = "AssetsBucketName"
+	internalClusterOutputKey  = "InternalCluster"
+	labelsOutputKey           = "Labels"
+	elbDNSOutputKey           = "ELBDNS"
 
 	clusterInfraStackType = "infra"
 	elbStackType          = "elb"
@@ -51,21 +58,6 @@ const (
 	stackStatusInProgressSuffix = "IN_PROGRESS"
 	stackStatusFailedSuffix     = "FAILED"
 	stackStatusRollback         = "ROLLBACK"
-)
-
-var (
-	// List of tag key names that should not be used as cluster or pool labels
-	stackTagsNotLabels = []string{
-		stackTypeTagKey,
-		managedByKetoTagKey,
-		kubeVersionTagKey,
-		kubeAPIURLTagKey,
-		coreOSVersionTagKey,
-		assetsBucketNameTagKey,
-		internalClusterTagKey,
-		machineTypeTagKey,
-		diskSizeTagKey,
-	}
 )
 
 // stackExists returns true if a given stack name exists and is managed by keto.
@@ -91,12 +83,12 @@ func (c *Cloud) getStack(name string) (*cloudformation.Stack, error) {
 
 // getStackLabels returns a model.Labels of given a cloudformation stack
 func getStackLabels(s *cloudformation.Stack) model.Labels {
-	labels := model.Labels{}
-	for _, tag := range s.Tags {
-		if tagReserved(*tag.Key) {
-			continue
+	var labels model.Labels
+	for _, o := range s.Outputs {
+		if *o.OutputKey == labelsOutputKey {
+			s := strings.Split(*o.OutputValue, ",")
+			labels = util.KVsToLabels(s)
 		}
-		labels[*tag.Key] = *tag.Value
 	}
 	return labels
 }
@@ -116,8 +108,8 @@ func (c *Cloud) getStacksByType(t string) ([]*cloudformation.Stack, error) {
 			continue
 		}
 
-		for _, tag := range s.Tags {
-			if *tag.Key == stackTypeTagKey && *tag.Value == t {
+		for _, o := range s.Outputs {
+			if *o.OutputKey == stackTypeOutputKey && *o.OutputValue == t {
 				stacks = append(stacks, s)
 			}
 		}
@@ -170,21 +162,19 @@ func isStackManaged(s *cloudformation.Stack) bool {
 func (c *Cloud) createClusterInfraStack(cluster model.Cluster, vpcID string, subnets []*ec2.Subnet) error {
 	networks := getNodesDistributionAcrossNetworks(subnets)
 
-	templateBody, err := renderClusterInfraStackTemplate(cluster.Name, vpcID, networks)
+	templateBody, err := renderClusterInfraStackTemplate(cluster, vpcID, networks)
 	if err != nil {
 		return err
 	}
 
-	l := model.Labels{}
-	for k, v := range cluster.Labels {
-		l[k] = v
-	}
-	l[stackTypeTagKey] = clusterInfraStackType
-	l[internalClusterTagKey] = strconv.FormatBool(cluster.Internal)
+	// To ensure stack resources inherit cluster-name.
+	tags := make(map[string]string)
+	tags[clusterNameTagKey] = cluster.Name
+	tags[stackTypeTagKey] = clusterInfraStackType
 
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeClusterInfraStackName(cluster.Name)),
-		Tags:         makeStackTags(l),
+		Tags:         makeStackTags(tags),
 		TemplateBody: aws.String(templateBody),
 	}
 
@@ -262,32 +252,24 @@ func (c *Cloud) createMasterPoolStack(
 		return err
 	}
 
-	templateBody, err := renderMasterStackTemplate(p, infraStackName, amiID, elbName, assetsBucketName, nodesPerSubnet)
+	stackName := makeMasterPoolStackName(p.ClusterName, "")
+	templateBody, err := renderMasterStackTemplate(p, amiID, elbName, assetsBucketName, nodesPerSubnet, kubeAPIURL, stackName)
 	if err != nil {
 		return err
 	}
 
-	l := model.Labels{}
-	for k, v := range p.Labels {
-		l[k] = v
-	}
-	l[stackTypeTagKey] = masterPoolStackType
-	l[internalClusterTagKey] = strconv.FormatBool(p.Internal)
-	l[kubeVersionTagKey] = p.KubeVersion
-	l[coreOSVersionTagKey] = p.CoreOSVersion
-	l[machineTypeTagKey] = p.MachineType
-	l[kubeAPIURLTagKey] = kubeAPIURL
-	l[assetsBucketNameTagKey] = assetsBucketName
-	l[diskSizeTagKey] = strconv.Itoa(p.DiskSize)
+	// To ensure stack resources inherit cluster-name.
+	tags := make(map[string]string)
+	tags[clusterNameTagKey] = p.ClusterName
+	tags[stackTypeTagKey] = masterPoolStackType
 
 	stack := &cloudformation.CreateStackInput{
-		StackName:    aws.String(makeMasterPoolStackName(p.ClusterName, "")),
+		StackName:    aws.String(stackName),
 		TemplateBody: aws.String(templateBody),
-		Tags:         makeStackTags(l),
+		Tags:         makeStackTags(tags),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
 	}
-
 	return c.createStack(stack)
 }
 
@@ -314,24 +296,21 @@ func makeMasterPoolStackName(clusterName, part string) string {
 }
 
 func (c *Cloud) createELBStack(cluster model.Cluster, vpcID, infraStackName string) error {
-	templateBody, err := renderELBStackTemplate(cluster, vpcID, infraStackName)
+	templateBody, err := renderELBStackTemplate(cluster, vpcID)
 	if err != nil {
 		return err
 	}
 
-	l := model.Labels{}
-	for k, v := range cluster.Labels {
-		l[k] = v
-	}
-	l[stackTypeTagKey] = elbStackType
-	l[internalClusterTagKey] = strconv.FormatBool(cluster.Internal)
+	// To ensure stack resources inherit cluster-name.
+	tags := make(map[string]string)
+	tags[clusterNameTagKey] = cluster.Name
+	tags[stackTypeTagKey] = elbStackType
 
 	stack := &cloudformation.CreateStackInput{
 		StackName:    aws.String(makeELBStackName(cluster.Name)),
-		Tags:         makeStackTags(l),
+		Tags:         makeStackTags(tags),
 		TemplateBody: aws.String(templateBody),
 	}
-
 	return c.createStack(stack)
 }
 
@@ -342,31 +321,24 @@ func makeELBStackName(clusterName string) string {
 }
 
 func (c *Cloud) createComputePoolStack(p model.ComputePool, infraStackName string, amiID string, kubeAPIURL string) error {
-	templateBody, err := renderComputeStackTemplate(p, infraStackName, amiID)
+	stackName := makeComputePoolStackName(p.ClusterName, p.Name, "")
+	templateBody, err := renderComputeStackTemplate(p, amiID, kubeAPIURL, stackName)
 	if err != nil {
 		return err
 	}
 
-	l := model.Labels{}
-	for k, v := range p.Labels {
-		l[k] = v
-	}
-	l[stackTypeTagKey] = computePoolStackType
-	l[internalClusterTagKey] = strconv.FormatBool(p.Internal)
-	l[kubeVersionTagKey] = p.KubeVersion
-	l[coreOSVersionTagKey] = p.CoreOSVersion
-	l[machineTypeTagKey] = p.MachineType
-	l[kubeAPIURLTagKey] = kubeAPIURL
-	l[diskSizeTagKey] = strconv.Itoa(p.DiskSize)
+	// To ensure stack resources inherit cluster-name.
+	tags := make(map[string]string)
+	tags[clusterNameTagKey] = p.ClusterName
+	tags[stackTypeTagKey] = computePoolStackType
 
 	stack := &cloudformation.CreateStackInput{
-		StackName:    aws.String(makeComputePoolStackName(p.ClusterName, p.Name, "")),
+		StackName:    aws.String(stackName),
 		TemplateBody: aws.String(templateBody),
-		Tags:         makeStackTags(l),
+		Tags:         makeStackTags(tags),
 		Capabilities: aws.StringSlice([]string{
 			cloudformation.CapabilityCapabilityIam, cloudformation.CapabilityCapabilityNamedIam}),
 	}
-
 	return c.createStack(stack)
 }
 
@@ -381,11 +353,13 @@ func makeComputePoolStackName(clusterName, name, part string) string {
 
 func makeStackTags(m map[string]string) []*cloudformation.Tag {
 	tags := []*cloudformation.Tag{}
-	for k, v := range m {
-		tags = append(tags, &cloudformation.Tag{
-			Key:   aws.String(k),
-			Value: aws.String(v),
-		})
+	if m != nil {
+		for k, v := range m {
+			tags = append(tags, &cloudformation.Tag{
+				Key:   aws.String(k),
+				Value: aws.String(v),
+			})
+		}
 	}
 
 	// Add tags that apply to all stacks.
