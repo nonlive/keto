@@ -23,7 +23,6 @@ import (
 	"io/ioutil"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/UKHomeOffice/keto/pkg/cloudprovider"
 	"github.com/UKHomeOffice/keto/pkg/constants"
@@ -63,8 +62,6 @@ const (
 	etcdCAKeyObjectName  = "etcd_ca.key"
 	kubeCACertObjectName = "kube_ca.crt"
 	kubeCAKeyObjectName  = "kube_ca.key"
-
-	assetsExpirationTime = time.Hour
 )
 
 var (
@@ -358,17 +355,16 @@ func (c *Cloud) PushAssets(clusterName string, a model.Assets) error {
 	}
 
 	// We only need the assets for the initial bootstrap.
-	expires := time.Now().Add(assetsExpirationTime)
-	if err := c.putS3Object(bucket, etcdCACertObjectName, a.EtcdCACert, expires); err != nil {
+	if err := c.putS3Object(bucket, etcdCACertObjectName, a.EtcdCACert); err != nil {
 		return err
 	}
-	if err := c.putS3Object(bucket, etcdCAKeyObjectName, a.EtcdCAKey, expires); err != nil {
+	if err := c.putS3Object(bucket, etcdCAKeyObjectName, a.EtcdCAKey); err != nil {
 		return err
 	}
-	if err := c.putS3Object(bucket, kubeCACertObjectName, a.KubeCACert, expires); err != nil {
+	if err := c.putS3Object(bucket, kubeCACertObjectName, a.KubeCACert); err != nil {
 		return err
 	}
-	if err := c.putS3Object(bucket, kubeCAKeyObjectName, a.KubeCAKey, expires); err != nil {
+	if err := c.putS3Object(bucket, kubeCAKeyObjectName, a.KubeCAKey); err != nil {
 		return err
 	}
 
@@ -391,14 +387,11 @@ func (c Cloud) getAssetsBucketName(clusterName string) (string, error) {
 
 // putS3Object uploads b object as objectName to S3 bucket b. Optionally, an
 // expiry time can be set as well.
-func (c Cloud) putS3Object(bucket string, objectName string, b []byte, expires time.Time) error {
+func (c Cloud) putS3Object(bucket string, objectName string, b []byte) error {
 	params := &s3.PutObjectInput{
 		Body:   bytes.NewReader(b),
 		Bucket: aws.String(bucket),
 		Key:    aws.String(objectName),
-	}
-	if !expires.IsZero() {
-		params = params.SetExpires(expires)
 	}
 
 	_, err := c.s3.PutObject(params)
