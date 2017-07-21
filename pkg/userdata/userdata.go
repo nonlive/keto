@@ -258,8 +258,8 @@ write_files:
   owner: root
   content: |
     net.ipv4.ip_forward = 1
-    net.ipv4.conf.default.rp_filter = 2
-    net.ipv4.conf.all.rp_filter = 2
+    net.ipv4.conf.default.rp_filter = 1
+    net.ipv4.conf.all.rp_filter = 1
     kernel.kptr_restrict = 1
 - path: /etc/sysctl.d/50-coredump.conf
   permissions: 0644
@@ -375,6 +375,14 @@ write_files:
     [Global]
     DisableSecurityGroupIngress = true
     KubernetesClusterTag = "{{ .ClusterName }}"
+- path: /etc/sysctl.d/baselayout.conf
+  permissions: 0644
+  owner: root
+  content: |
+    net.ipv4.ip_forward = 1
+    net.ipv4.conf.default.rp_filter = 1
+    net.ipv4.conf.all.rp_filter = 1
+    kernel.kptr_restrict = 1
 - path: /etc/sysctl.d/10-disable-ipv6.conf
   permissions: 0644
   owner: root
