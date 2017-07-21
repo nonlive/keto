@@ -125,13 +125,41 @@ func createClusterCmdFunc(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	cluster.Labels = util.KVsToLabels(labels)
+	cluster.Labels = util.KVsToStringMap(labels)
 
 	p, err := makeMasterPool("master", name, *c)
 	if err != nil {
 		return err
 	}
 	cluster.MasterPool = p
+
+	// Set API server extra arguments.
+	apiServerExtraArgs, err := c.Flags().GetString("api-server-extra-args")
+	if err != nil {
+		return err
+	}
+	cluster.MasterPool.APIServerExtraArgs = apiServerExtraArgs
+
+	// Set controller manager extra arguments.
+	controllerManagerExtraArgs, err := c.Flags().GetString("controller-manager-extra-args")
+	if err != nil {
+		return err
+	}
+	cluster.MasterPool.ControllerManagerExtraArgs = controllerManagerExtraArgs
+
+	// Set scheduler extra arguments.
+	schedulerExtraArgs, err := c.Flags().GetString("scheduler-extra-args")
+	if err != nil {
+		return err
+	}
+	cluster.MasterPool.SchedulerExtraArgs = schedulerExtraArgs
+
+	// Set kubelet extra arguments, they also apply to compute pools, see below.
+	kubeletExtraArgs, err := c.Flags().GetString("kubelet-extra-args")
+	if err != nil {
+		return err
+	}
+	cluster.MasterPool.KubeletExtraArgs = kubeletExtraArgs
 
 	numComputePools, err := c.Flags().GetInt("compute-pools")
 	if err != nil {
@@ -142,6 +170,7 @@ func createClusterCmdFunc(c *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
+		p.KubeletExtraArgs = kubeletExtraArgs
 		cluster.ComputePools = append(cluster.ComputePools, p)
 	}
 
@@ -293,7 +322,43 @@ func makeMasterPool(name, clusterName string, c cobra.Command) (model.MasterPool
 	if err != nil {
 		return p, err
 	}
-	p.Labels = util.KVsToLabels(labels)
+	p.Labels = util.KVsToStringMap(labels)
+
+	if c.Flags().Changed("taints") {
+		taints, err := c.Flags().GetStringSlice("taints")
+		if err != nil {
+			return p, err
+		}
+		p.Taints = util.KVsToStringMap(taints)
+	}
+
+	// Set API server extra arguments.
+	apiServerExtraArgs, err := c.Flags().GetString("api-server-extra-args")
+	if err != nil {
+		return p, err
+	}
+	p.APIServerExtraArgs = apiServerExtraArgs
+
+	// Set controller manager extra arguments.
+	controllerManagerExtraArgs, err := c.Flags().GetString("controller-manager-extra-args")
+	if err != nil {
+		return p, err
+	}
+	p.ControllerManagerExtraArgs = controllerManagerExtraArgs
+
+	// Set scheduler extra arguments.
+	schedulerExtraArgs, err := c.Flags().GetString("scheduler-extra-args")
+	if err != nil {
+		return p, err
+	}
+	p.SchedulerExtraArgs = schedulerExtraArgs
+
+	// Set kubelet extra arguments, they also apply to compute pools, see below.
+	kubeletExtraArgs, err := c.Flags().GetString("kubelet-extra-args")
+	if err != nil {
+		return p, err
+	}
+	p.KubeletExtraArgs = kubeletExtraArgs
 
 	p.Name = name
 	p.ClusterName = clusterName
@@ -382,7 +447,21 @@ func makeComputePool(name, clusterName string, c cobra.Command) (model.ComputePo
 	if err != nil {
 		return p, err
 	}
-	p.Labels = util.KVsToLabels(labels)
+	p.Labels = util.KVsToStringMap(labels)
+
+	if c.Flags().Changed("taints") {
+		taints, err := c.Flags().GetStringSlice("taints")
+		if err != nil {
+			return p, err
+		}
+		p.Taints = util.KVsToStringMap(taints)
+	}
+	// Set kubelet extra arguments, they also apply to compute pools, see below.
+	kubeletExtraArgs, err := c.Flags().GetString("kubelet-extra-args")
+	if err != nil {
+		return p, err
+	}
+	p.KubeletExtraArgs = kubeletExtraArgs
 
 	p.Name = name
 	p.ClusterName = clusterName
@@ -449,6 +528,11 @@ func init() {
 		createMasterPoolCmd,
 	)
 
+	addTaintsFlag(
+		createComputePoolCmd,
+		createMasterPoolCmd,
+	)
+
 	addKubeVersionFlag(
 		createClusterCmd,
 		createComputePoolCmd,
@@ -470,5 +554,26 @@ func init() {
 
 	addDNSZoneFlag(
 		createClusterCmd,
+	)
+
+	addKubeletExtraArgsFlag(
+		createClusterCmd,
+		createComputePoolCmd,
+		createMasterPoolCmd,
+	)
+
+	addAPIServerExtraArgsFlag(
+		createClusterCmd,
+		createMasterPoolCmd,
+	)
+
+	addControllerManagerExtraArgsFlag(
+		createClusterCmd,
+		createMasterPoolCmd,
+	)
+
+	addSchedulerExtraArgsFlag(
+		createClusterCmd,
+		createMasterPoolCmd,
 	)
 }

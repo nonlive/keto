@@ -160,7 +160,7 @@ Resources:
 
 Outputs:
   VpcID:
-    Value: {{ .VpcID }}
+    Value: "{{ .VpcID }}"
     Export:
       Name:
         Fn::Sub: "${AWS::StackName}-VpcID"
@@ -193,7 +193,7 @@ Outputs:
     Value: "{{ .Cluster.Internal }}"
 
   {{ .StackTypeOutputKey }}:
-    Value: {{ .StackType }}
+    Value: "{{ .StackType }}"
 `
 	)
 
@@ -213,7 +213,7 @@ Outputs:
 		Networks:                  networks,
 		VpcID:                     vpcID,
 		LabelsOutputKey:           labelsOutputKey,
-		Labels:                    util.LabelsToKVs(c.Labels),
+		Labels:                    util.StringMapToKVs(c.Labels),
 		ClusterNameOutputKey:      clusterNameOutputKey,
 		StackTypeOutputKey:        stackTypeOutputKey,
 		StackType:                 clusterInfraStackType,
@@ -493,7 +493,7 @@ Resources:
 
 Outputs:
   {{ .AssetsBucketNameOutputKey }}:
-    Value: {{ .AssetsBucketName }}
+    Value: "{{ .AssetsBucketName }}"
 
   {{ .ClusterNameOutputKey }}:
     Value: "{{ .MasterPool.ClusterName }}"
@@ -523,7 +523,22 @@ Outputs:
     Value: "{{ .MasterPool.Internal }}"
 
   {{ .StackTypeOutputKey }}:
-    Value: {{ .StackType }}
+    Value: "{{ .StackType }}"
+
+  {{ .TaintsOutputKey }}:
+    Value: "{{ .Taints }}"
+
+  {{ .KubeletExtraArgsOutputKey }}:
+    Value: "{{ .MasterPool.KubeletExtraArgs }}"
+
+  {{ .APIServerExtraArgsOutputKey }}:
+    Value: "{{ .MasterPool.APIServerExtraArgs }}"
+
+  {{ .ControllerManagerExtraArgsOutputKey }}:
+    Value: "{{ .MasterPool.ControllerManagerExtraArgs }}"
+
+  {{ .SchedulerExtraArgsOutputKey }}:
+    Value: "{{ .MasterPool.SchedulerExtraArgs }}"
 `
 	)
 
@@ -531,51 +546,63 @@ Outputs:
 	sort.Strings(p.Networks)
 
 	data := struct {
-		MasterPool                model.MasterPool
-		ClusterInfraStackName     string
-		StackName                 string
-		AmiID                     string
-		ELBName                   string
-		UserData                  string
-		NodesPerSubnet            map[string]int
-		KubeAPIURL                string
-		LabelsOutputKey           string
-		Labels                    string
-		ClusterNameOutputKey      string
-		PoolNameOutputKey         string
-		CoreOSVersionOutputKey    string
-		StackTypeOutputKey        string
-		StackType                 string
-		InternalClusterOutputKey  string
-		AssetsBucketNameOutputKey string
-		AssetsBucketName          string
-		KubeAPIURLOutputKey       string
-		MachineTypeOutputKey      string
-		KubeVersionOutputKey      string
-		DiskSizeOutputKey         string
+		MasterPool                          model.MasterPool
+		ClusterInfraStackName               string
+		StackName                           string
+		AmiID                               string
+		ELBName                             string
+		UserData                            string
+		NodesPerSubnet                      map[string]int
+		KubeAPIURL                          string
+		LabelsOutputKey                     string
+		Labels                              string
+		Taints                              string
+		ClusterNameOutputKey                string
+		PoolNameOutputKey                   string
+		CoreOSVersionOutputKey              string
+		StackTypeOutputKey                  string
+		StackType                           string
+		InternalClusterOutputKey            string
+		AssetsBucketNameOutputKey           string
+		AssetsBucketName                    string
+		KubeAPIURLOutputKey                 string
+		MachineTypeOutputKey                string
+		KubeVersionOutputKey                string
+		DiskSizeOutputKey                   string
+		TaintsOutputKey                     string
+		KubeletExtraArgsOutputKey           string
+		APIServerExtraArgsOutputKey         string
+		ControllerManagerExtraArgsOutputKey string
+		SchedulerExtraArgsOutputKey         string
 	}{
-		MasterPool:                p,
-		ClusterInfraStackName:     makeClusterInfraStackName(p.ClusterName),
-		StackName:                 stackName,
-		AmiID:                     amiID,
-		ELBName:                   elbName,
-		UserData:                  base64.StdEncoding.EncodeToString(p.UserData),
-		NodesPerSubnet:            nodesPerSubnet,
-		KubeAPIURL:                kubeAPIURL,
-		LabelsOutputKey:           labelsOutputKey,
-		Labels:                    util.LabelsToKVs(p.Labels),
-		ClusterNameOutputKey:      clusterNameOutputKey,
-		CoreOSVersionOutputKey:    coreOSVersionOutputKey,
-		PoolNameOutputKey:         poolNameOutputKey,
-		StackTypeOutputKey:        stackTypeOutputKey,
-		StackType:                 masterPoolStackType,
-		InternalClusterOutputKey:  internalClusterOutputKey,
-		AssetsBucketNameOutputKey: assetsBucketNameOutputKey,
-		AssetsBucketName:          assetsBucketName,
-		KubeAPIURLOutputKey:       kubeAPIURLOutputKey,
-		MachineTypeOutputKey:      machineTypeOutputKey,
-		KubeVersionOutputKey:      kubeVersionOutputKey,
-		DiskSizeOutputKey:         diskSizeOutputKey,
+		MasterPool:                          p,
+		ClusterInfraStackName:               makeClusterInfraStackName(p.ClusterName),
+		StackName:                           stackName,
+		AmiID:                               amiID,
+		ELBName:                             elbName,
+		UserData:                            base64.StdEncoding.EncodeToString(p.UserData),
+		NodesPerSubnet:                      nodesPerSubnet,
+		KubeAPIURL:                          kubeAPIURL,
+		LabelsOutputKey:                     labelsOutputKey,
+		Labels:                              util.StringMapToKVs(p.Labels),
+		Taints:                              util.StringMapToKVs(p.Taints),
+		ClusterNameOutputKey:                clusterNameOutputKey,
+		CoreOSVersionOutputKey:              coreOSVersionOutputKey,
+		PoolNameOutputKey:                   poolNameOutputKey,
+		StackTypeOutputKey:                  stackTypeOutputKey,
+		StackType:                           masterPoolStackType,
+		InternalClusterOutputKey:            internalClusterOutputKey,
+		AssetsBucketNameOutputKey:           assetsBucketNameOutputKey,
+		AssetsBucketName:                    assetsBucketName,
+		KubeAPIURLOutputKey:                 kubeAPIURLOutputKey,
+		MachineTypeOutputKey:                machineTypeOutputKey,
+		KubeVersionOutputKey:                kubeVersionOutputKey,
+		DiskSizeOutputKey:                   diskSizeOutputKey,
+		TaintsOutputKey:                     taintsOutputKey,
+		KubeletExtraArgsOutputKey:           kubeletExtraArgsOutputKey,
+		APIServerExtraArgsOutputKey:         apiServerExtraArgsOutputKey,
+		ControllerManagerExtraArgsOutputKey: controllerManagerExtraArgsOutputKey,
+		SchedulerExtraArgsOutputKey:         schedulerExtraArgsOutputKey,
 	}
 
 	funcMap := template.FuncMap{
@@ -714,7 +741,13 @@ Outputs:
     Value: "{{ .ComputePool.Internal }}"
 
   {{ .StackTypeOutputKey }}:
-    Value: {{ .StackType }}
+    Value: "{{ .StackType }}"
+
+  {{ .TaintsOutputKey }}:
+    Value: "{{ .Taints }}"
+
+  {{ .KubeletExtraArgsOutputKey }}:
+    Value: "{{ .ComputePool.KubeletExtraArgs }}"
 `
 	)
 
@@ -722,43 +755,49 @@ Outputs:
 	sort.Strings(p.Networks)
 
 	data := struct {
-		ComputePool              model.ComputePool
-		ClusterInfraStackName    string
-		StackName                string
-		AmiID                    string
-		UserData                 string
-		KubeAPIURL               string
-		LabelsOutputKey          string
-		Labels                   string
-		ClusterNameOutputKey     string
-		PoolNameOutputKey        string
-		CoreOSVersionOutputKey   string
-		StackTypeOutputKey       string
-		StackType                string
-		InternalClusterOutputKey string
-		KubeAPIURLOutputKey      string
-		MachineTypeOutputKey     string
-		KubeVersionOutputKey     string
-		DiskSizeOutputKey        string
+		ComputePool               model.ComputePool
+		ClusterInfraStackName     string
+		StackName                 string
+		AmiID                     string
+		UserData                  string
+		KubeAPIURL                string
+		LabelsOutputKey           string
+		Labels                    string
+		Taints                    string
+		ClusterNameOutputKey      string
+		PoolNameOutputKey         string
+		CoreOSVersionOutputKey    string
+		StackTypeOutputKey        string
+		StackType                 string
+		InternalClusterOutputKey  string
+		KubeAPIURLOutputKey       string
+		MachineTypeOutputKey      string
+		KubeVersionOutputKey      string
+		DiskSizeOutputKey         string
+		TaintsOutputKey           string
+		KubeletExtraArgsOutputKey string
 	}{
-		ComputePool:              p,
-		ClusterInfraStackName:    makeClusterInfraStackName(p.ClusterName),
-		StackName:                stackName,
-		AmiID:                    amiID,
-		UserData:                 base64.StdEncoding.EncodeToString(p.UserData),
-		KubeAPIURL:               kubeAPIURL,
-		LabelsOutputKey:          labelsOutputKey,
-		Labels:                   util.LabelsToKVs(p.Labels),
-		ClusterNameOutputKey:     clusterNameOutputKey,
-		CoreOSVersionOutputKey:   coreOSVersionOutputKey,
-		PoolNameOutputKey:        poolNameOutputKey,
-		StackTypeOutputKey:       stackTypeOutputKey,
-		StackType:                computePoolStackType,
-		InternalClusterOutputKey: internalClusterOutputKey,
-		KubeAPIURLOutputKey:      kubeAPIURLOutputKey,
-		MachineTypeOutputKey:     machineTypeOutputKey,
-		KubeVersionOutputKey:     kubeVersionOutputKey,
-		DiskSizeOutputKey:        diskSizeOutputKey,
+		ComputePool:               p,
+		ClusterInfraStackName:     makeClusterInfraStackName(p.ClusterName),
+		StackName:                 stackName,
+		AmiID:                     amiID,
+		UserData:                  base64.StdEncoding.EncodeToString(p.UserData),
+		KubeAPIURL:                kubeAPIURL,
+		LabelsOutputKey:           labelsOutputKey,
+		Labels:                    util.StringMapToKVs(p.Labels),
+		Taints:                    util.StringMapToKVs(p.Taints),
+		ClusterNameOutputKey:      clusterNameOutputKey,
+		CoreOSVersionOutputKey:    coreOSVersionOutputKey,
+		PoolNameOutputKey:         poolNameOutputKey,
+		StackTypeOutputKey:        stackTypeOutputKey,
+		StackType:                 computePoolStackType,
+		InternalClusterOutputKey:  internalClusterOutputKey,
+		KubeAPIURLOutputKey:       kubeAPIURLOutputKey,
+		MachineTypeOutputKey:      machineTypeOutputKey,
+		KubeVersionOutputKey:      kubeVersionOutputKey,
+		DiskSizeOutputKey:         diskSizeOutputKey,
+		TaintsOutputKey:           taintsOutputKey,
+		KubeletExtraArgsOutputKey: kubeletExtraArgsOutputKey,
 	}
 
 	t := template.Must(template.New("compute-stack").Parse(computeStackTemplate))

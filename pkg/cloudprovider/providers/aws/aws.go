@@ -536,9 +536,22 @@ outer:
 				}
 				p.DiskSize = i
 			}
+			if *o.OutputKey == kubeletExtraArgsOutputKey {
+				p.KubeletExtraArgs = *o.OutputValue
+			}
+			if *o.OutputKey == apiServerExtraArgsOutputKey {
+				p.APIServerExtraArgs = *o.OutputValue
+			}
+			if *o.OutputKey == controllerManagerExtraArgsOutputKey {
+				p.ControllerManagerExtraArgs = *o.OutputValue
+			}
+			if *o.OutputKey == schedulerExtraArgsOutputKey {
+				p.SchedulerExtraArgs = *o.OutputValue
+			}
 		}
 
 		p.Labels = getStackLabels(s)
+		p.Taints = getStackTaints(s)
 		pools = append(pools, p)
 	}
 	return pools, nil
@@ -587,9 +600,13 @@ outer:
 				}
 				p.DiskSize = i
 			}
+			if *o.OutputKey == kubeletExtraArgsOutputKey {
+				p.KubeletExtraArgs = *o.OutputValue
+			}
 		}
 
 		p.Labels = getStackLabels(s)
+		p.Taints = getStackTaints(s)
 		pools = append(pools, p)
 	}
 	return pools, nil

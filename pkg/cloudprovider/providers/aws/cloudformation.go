@@ -36,18 +36,23 @@ const (
 	greenStack = "green"
 
 	// Stack Outputs key names.
-	stackTypeOutputKey        = "StackType"
-	clusterNameOutputKey      = "ClusterName"
-	poolNameOutputKey         = "PoolName"
-	coreOSVersionOutputKey    = "CoreOSVersion"
-	kubeVersionOutputKey      = "KubeVersion"
-	kubeAPIURLOutputKey       = "KubeAPIURL"
-	machineTypeOutputKey      = "MachineType"
-	diskSizeOutputKey         = "DiskSize"
-	assetsBucketNameOutputKey = "AssetsBucketName"
-	internalClusterOutputKey  = "InternalCluster"
-	labelsOutputKey           = "Labels"
-	elbDNSOutputKey           = "ELBDNS"
+	stackTypeOutputKey                  = "StackType"
+	clusterNameOutputKey                = "ClusterName"
+	poolNameOutputKey                   = "PoolName"
+	coreOSVersionOutputKey              = "CoreOSVersion"
+	kubeVersionOutputKey                = "KubeVersion"
+	kubeAPIURLOutputKey                 = "KubeAPIURL"
+	machineTypeOutputKey                = "MachineType"
+	diskSizeOutputKey                   = "DiskSize"
+	assetsBucketNameOutputKey           = "AssetsBucketName"
+	internalClusterOutputKey            = "InternalCluster"
+	labelsOutputKey                     = "Labels"
+	elbDNSOutputKey                     = "ELBDNS"
+	taintsOutputKey                     = "Taints"
+	kubeletExtraArgsOutputKey           = "KubeletExtraArgs"
+	apiServerExtraArgsOutputKey         = "APIServerExtraArgs"
+	controllerManagerExtraArgsOutputKey = "ControllerManagerExtraArgs"
+	schedulerExtraArgsOutputKey         = "SchedulerExtraArgs"
 
 	clusterInfraStackType = "infra"
 	elbStackType          = "elb"
@@ -81,16 +86,28 @@ func (c *Cloud) getStack(name string) (*cloudformation.Stack, error) {
 	return stacks[0], nil
 }
 
-// getStackLabels returns a model.Labels of given a cloudformation stack
+// getStackLabels returns model.Labels of given cloudformation stack.
 func getStackLabels(s *cloudformation.Stack) model.Labels {
 	var labels model.Labels
 	for _, o := range s.Outputs {
 		if *o.OutputKey == labelsOutputKey {
 			s := strings.Split(*o.OutputValue, ",")
-			labels = util.KVsToLabels(s)
+			labels = util.KVsToStringMap(s)
 		}
 	}
 	return labels
+}
+
+// getStackTaints returns model.Taints of given cloudformation stack.
+func getStackTaints(s *cloudformation.Stack) model.Taints {
+	var taints model.Taints
+	for _, o := range s.Outputs {
+		if *o.OutputKey == taintsOutputKey {
+			s := strings.Split(*o.OutputValue, ",")
+			taints = util.KVsToStringMap(s)
+		}
+	}
+	return taints
 }
 
 // getStacksByType returns a list of stacks by type, also checks if they are
