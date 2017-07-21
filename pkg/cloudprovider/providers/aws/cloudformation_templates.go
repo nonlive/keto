@@ -80,8 +80,8 @@ Resources:
       GroupId: !Ref MasterPoolSG
       IpProtocol: "6"
       SourceSecurityGroupId: !Ref ComputePoolSG
-      FromPort: 6443
-      ToPort: 6443
+      FromPort: 443
+      ToPort: 443
 
   ComputePoolSG:
     Type: "AWS::EC2::SecurityGroup"
@@ -245,23 +245,19 @@ Resources:
           CidrIp: 0.0.0.0/0
           FromPort: "443"
           ToPort: "443"
-        - IpProtocol: "6"
-          CidrIp: 0.0.0.0/0
-          FromPort: "6443"
-          ToPort: "6443"
       Tags:
         - Key: Name
           Value: "keto-{{ .Cluster.Name }}-kubeapi"
 
-  # Allow ELB to talk to master node pool on 6443/tcp
+  # Allow ELB to talk to master node pool on 443/tcp
   ELBtoMasterPoolTrafficSG:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       GroupId: !ImportValue "{{ .ClusterInfraStackName }}-MasterPoolSG"
       IpProtocol: "6"
       SourceSecurityGroupId: !Ref ELBSG
-      FromPort: "6443"
-      ToPort: "6443"
+      FromPort: "443"
+      ToPort: "443"
 
   ELB:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
@@ -274,7 +270,7 @@ Resources:
       SecurityGroups:
         - !Ref ELBSG
       HealthCheck:
-        Target: 'TCP:6443'
+        Target: 'TCP:443'
         HealthyThreshold: 2
         Interval: 10
         Timeout: 5
@@ -285,11 +281,7 @@ Resources:
       Listeners:
         - LoadBalancerPort: 443
           Protocol: TCP
-          InstancePort: 6443
-          InstanceProtocol: TCP
-        - LoadBalancerPort: 6443
-          Protocol: TCP
-          InstancePort: 6443
+          InstancePort: 443
           InstanceProtocol: TCP
       ConnectionSettings:
         IdleTimeout: 600
