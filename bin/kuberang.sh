@@ -9,20 +9,26 @@ WAIT_TIME=5
 RETRIES=0
 
 echo "Waiting for Kube API readiness..."
+
+PREP_STATE="Checking Kube API availability."
 while true ; do
-  PODS_RUNNING=`kubectl --namespace=kube-system get pods 2> /dev/null | grep "kube-dns" | grep "Running" | wc -l`
-  if [[ $PODS_RUNNING -eq 0 ]]; then
-    RETRIES=$((RETRIES + 1))
-    if [[ ${RETRIES} -eq ${MAX_RETRIES} ]]; then
-        echo "[ERROR] Max timeout reached while waiting for Kube API to become available."
-        exit 1
-    else
-        echo "[INFO] Attempt #${RETRIES} of #${MAX_RETRIES}: Kube API not yet available, sleeping for ${WAIT_TIME} seconds..."
-        sleep ${WAIT_TIME}
+  if kubectl version &> /dev/null; then
+    PREP_STATE="Kube API is ready, checking 'kube-dns' pod is running on compute node."
+
+    PODS_RUNNING=`kubectl --namespace=kube-system get pods 2> /dev/null | grep "kube-dns" | grep "Running" | wc -l`
+    if [[ $PODS_RUNNING -gt 0 ]]; then
+      echo "[INFO] Kube API and compute nodes are available, beginning Kuberang test."
+      break
     fi
+  fi
+
+  RETRIES=$((RETRIES + 1))
+  if [[ ${RETRIES} -eq ${MAX_RETRIES} ]]; then
+      echo "[ERROR] Max timeout reached. Failed on step: ${PREP_STATE}"
+      exit 1
   else
-    echo "[INFO] Kube API available and responding, beginning Kuberang test."
-    break
+      echo "[INFO] Attempt #${RETRIES} of #${MAX_RETRIES}: Kube API not yet available, sleeping for ${WAIT_TIME} seconds..."
+      sleep ${WAIT_TIME}
   fi
 done
 
