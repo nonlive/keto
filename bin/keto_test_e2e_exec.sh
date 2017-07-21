@@ -36,7 +36,7 @@ function run_e2e_test() {
     generate_kube_config || return
 
     echo "[INFO] Executing kuberang test to validate cluster health"
-    ${WORKINGDIR}/bin/kuberang.sh 150 || return
+    ${WORKINGDIR}/bin/kuberang.sh 180 || return
 
     echo "[INFO] Keto attempting to create compute pool 'compute1'"
     keto --cloud ${KETO_CLOUD_PROVIDER} create computepool compute1 --cluster ${CLUSTER_NAME} \
@@ -49,7 +49,7 @@ function run_e2e_test() {
     keto --cloud ${KETO_CLOUD_PROVIDER} delete computepool compute0 --cluster ${CLUSTER_NAME} || return
 
     echo "[INFO] Executing kuberang test to validate cluster health"
-    ${WORKINGDIR}/bin/kuberang.sh 150 || return
+    ${WORKINGDIR}/bin/kuberang.sh 180 || return
 
     cleanup
 }
