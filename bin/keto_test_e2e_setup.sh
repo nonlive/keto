@@ -13,9 +13,6 @@ glide install
 # cfssl for cert generation
 go get -u github.com/cloudflare/cfssl/cmd/...
 
-# TODO: This can be removed when keto implements the capability to locally generate the kube config
-curl -LO https://bootstrap.pypa.io/get-pip.py && python get-pip.py && pip install awscli
-
 # Get kubectl, kubeadm, kuberang
 curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBE_VERSION}/bin/linux/amd64/kubectl
 chmod +x kubectl && mv kubectl /usr/local/bin/kubectl && kubectl help
