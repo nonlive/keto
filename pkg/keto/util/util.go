@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/UKHomeOffice/keto/pkg/model"
 )
 
-// LabelsToKVs returns a string of labels in k=v,k=v format as a string.
-func LabelsToKVs(m model.Labels) string {
+// StringMapToKVs returns a string of labels in k=v,k=v format as a string.
+func StringMapToKVs(m map[string]string) string {
 	s := []string{}
 
 	for k, v := range m {
@@ -19,14 +17,14 @@ func LabelsToKVs(m model.Labels) string {
 	return strings.Join(s, ",")
 }
 
-// KVsToLabels turns a list of k=v pairs into model.Labels.
-func KVsToLabels(kvs []string) model.Labels {
-	labels := model.Labels{}
+// KVsToStringMap turns a list of k=v pairs into a string map of strings.
+func KVsToStringMap(kvs []string) map[string]string {
+	m := make(map[string]string)
 	for _, kv := range kvs {
 		s := strings.SplitN(kv, "=", 2)
 		if len(s) == 2 {
-			labels[s[0]] = s[1]
+			m[s[0]] = s[1]
 		}
 	}
-	return labels
+	return m
 }
