@@ -660,13 +660,19 @@ Resources:
         - !Ref InstanceRole
       PolicyDocument:
         Statement:
-          - Resource: "*"
+          - Resource:
+              - Fn::Sub: "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
             Effect: Allow
             Action:
               - ec2:CreateTags
-              - ec2:DescribeInstances
-              - ec2:DescribeTags
-              - ec2:DescribeVpcs
+            Condition:
+              StringEquals:
+                'ec2:ResourceTag/cluster-name': "{{ .ComputePool.ClusterName }}"
+                'aws:RequestTag/KubeletToken': "Success"
+          - Resource: "*"
+            Effect: Allow
+            Action:
+              - "ec2:Describe*"
           - Resource:
               - Fn::Sub: "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/{{ .StackName }}/*"
             Effect: Allow
