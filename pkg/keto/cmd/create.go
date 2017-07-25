@@ -374,10 +374,19 @@ func makeComputePool(name, clusterName string, c cobra.Command) (model.ComputePo
 	if err != nil {
 		return p, err
 	}
-	networks, err := c.Flags().GetStringSlice("networks")
+
+	networks, err := c.Flags().GetStringSlice("compute-networks")
 	if err != nil {
 		return p, err
 	}
+
+	if len(networks) == 0 {
+		networks, err = c.Flags().GetStringSlice("networks")
+		if err != nil {
+			return p, err
+		}
+	}
+
 	labels, err := c.Flags().GetStringSlice("labels")
 	if err != nil {
 		return p, err
@@ -461,6 +470,10 @@ func init() {
 	)
 
 	addComputePoolsFlag(
+		createClusterCmd,
+	)
+
+	addComputeNetworksFlag(
 		createClusterCmd,
 	)
 

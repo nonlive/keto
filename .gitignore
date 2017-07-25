@@ -5,6 +5,7 @@
 /etcd_ca.key
 /kube_ca.crt
 /kube_ca.key
+/dummycsr.json
 
 pkg/**/mocks/
 /mocks

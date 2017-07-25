@@ -225,3 +225,9 @@ func addComputePoolsFlag(c ...*cobra.Command) {
 		i.Flags().Int("compute-pools", 1, "Number of compute pools to create")
 	}
 }
+
+func addComputeNetworksFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().StringSlice("compute-networks", []string{}, "Cloud specific list of comma separated networks for a compute pools")
+	}
+}
