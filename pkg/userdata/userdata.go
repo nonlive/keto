@@ -80,9 +80,9 @@ coreos:
       [Unit]
       Description=Smilodon - manage ebs+eni attachment
       [Service]
-      Environment="URL=https://github.com/UKHomeOffice/smilodon/releases/download/v0.0.4/smilodon-0.0.4-linux-amd64"
+      Environment="URL=https://github.com/UKHomeOffice/smilodon/releases/download/v0.1.0/smilodon-0.1.0-linux-amd64"
       Environment="OUTPUT_FILE=/opt/bin/smilodon"
-      Environment="MD5SUM=071d32e53fdb53fa17c7bbe03744fdf6"
+      Environment="MD5SUM=500aa5f37a332d8e680c7d707b524077"
       ExecStartPre=/usr/bin/mkdir -p /opt/bin
       ExecStartPre=/usr/bin/bash -c 'until [[ -x ${OUTPUT_FILE} ]] && [[ $(md5sum ${OUTPUT_FILE} | cut -f1 -d" ") == ${MD5SUM} ]]; do wget -q -O ${OUTPUT_FILE} ${URL} && chmod +x ${OUTPUT_FILE}; done'
       ExecStart=/opt/bin/smilodon \
@@ -252,15 +252,6 @@ write_files:
   owner: root
   content: |
     net.ipv6.conf.all.disable_ipv6 = 1
-# Seems the only way to override default sysctl options added by CoreOS
-- path: /etc/sysctl.d/baselayout.conf
-  permissions: 0644
-  owner: root
-  content: |
-    net.ipv4.ip_forward = 1
-    net.ipv4.conf.default.rp_filter = 2
-    net.ipv4.conf.all.rp_filter = 2
-    kernel.kptr_restrict = 1
 - path: /etc/sysctl.d/50-coredump.conf
   permissions: 0644
   owner: root
