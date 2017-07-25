@@ -205,6 +205,13 @@ func addLabelsFlag(c ...*cobra.Command) {
 	}
 }
 
+// addTaintsFlag adds taints flag
+func addTaintsFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().StringSlice("taints", []string{}, "List of taints in a comma separated key=value format")
+	}
+}
+
 // addKubeVersionFlag adds a kubernetes version flag
 func addKubeVersionFlag(c ...*cobra.Command) {
 	for _, i := range c {
@@ -223,5 +230,33 @@ func addAssetsDirFlag(c ...*cobra.Command) {
 func addComputePoolsFlag(c ...*cobra.Command) {
 	for _, i := range c {
 		i.Flags().Int("compute-pools", 1, "Number of compute pools to create")
+	}
+}
+
+// addKubeletExtraArgsFlag adds a kubelet extra arguments flag
+func addKubeletExtraArgsFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("kubelet-extra-args", "", "Kubelet extra arguments")
+	}
+}
+
+// addAPIServerExtraArgsFlag adds an api-server extra arguments flag
+func addAPIServerExtraArgsFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("api-server-extra-args", "", "Kubernetes api-server extra arguments")
+	}
+}
+
+// addControllerManagerExtraArgsFlag adds a controller-manager extra arguments flag
+func addControllerManagerExtraArgsFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("controller-manager-extra-args", "", "Kubernetes controller-manager extra arguments")
+	}
+}
+
+// addSchedulerExtraArgsFlag adds a scheduler extra arguments flag
+func addSchedulerExtraArgsFlag(c ...*cobra.Command) {
+	for _, i := range c {
+		i.Flags().String("scheduler-extra-args", "", "Kubernetes scheduler extra arguments")
 	}
 }

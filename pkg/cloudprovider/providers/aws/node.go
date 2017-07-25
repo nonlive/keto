@@ -41,7 +41,22 @@ func (c Cloud) GetNodeData() (model.NodeData, error) {
 			data.KubeVersion = *o.OutputValue
 		}
 		if *o.OutputKey == labelsOutputKey {
-			data.Labels = util.KVsToLabels(strings.Split(*o.OutputValue, "="))
+			data.Labels = util.KVsToStringMap(strings.Split(*o.OutputValue, ","))
+		}
+		if *o.OutputKey == taintsOutputKey {
+			data.Taints = util.KVsToStringMap(strings.Split(*o.OutputValue, ","))
+		}
+		if *o.OutputKey == kubeletExtraArgsOutputKey {
+			data.KubeletExtraArgs = *o.OutputValue
+		}
+		if *o.OutputKey == apiServerExtraArgsOutputKey {
+			data.APIServerExtraArgs = *o.OutputValue
+		}
+		if *o.OutputKey == controllerManagerExtraArgsOutputKey {
+			data.ControllerManagerExtraArgs = *o.OutputValue
+		}
+		if *o.OutputKey == schedulerExtraArgsOutputKey {
+			data.SchedulerExtraArgs = *o.OutputValue
 		}
 	}
 

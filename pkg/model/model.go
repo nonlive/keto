@@ -34,17 +34,11 @@ type Cluster struct {
 	Status
 }
 
-// Labels a map of labels
+// Labels a map of labels.
 type Labels map[string]string
-type Taints map[string]string
 
-// KubeArgs represents the optional extra flags for Kubernetes components
-type KubeArgs struct {
-	KubeletExtraArgs           string
-	APIServerExtraArgs         string
-	ControllerManagerExtraArgs string
-	SchedulerExtraArgs         string
-}
+// Taints is map of kubelet taints.
+type Taints map[string]string
 
 // MasterPool is a representation of a master control plane node pool.
 type MasterPool struct {
@@ -73,6 +67,8 @@ type NodePoolSpec struct {
 	Size          int      `json:"size,omitempty"`
 	Networks      []string `json:"networks,omitempty"`
 	UserData      []byte   `json:"user_data,omitempty"`
+	Taints        `json:"taints,omitempty"`
+	KubeArgs      `json:"kube_args,omitempty"`
 }
 
 // ResourceMeta is a resource metadata.
@@ -99,4 +95,12 @@ type NodeData struct {
 	KubeArgs
 	Labels
 	Taints
+}
+
+// KubeArgs represents the optional extra flags for Kubernetes components.
+type KubeArgs struct {
+	KubeletExtraArgs           string
+	APIServerExtraArgs         string
+	ControllerManagerExtraArgs string
+	SchedulerExtraArgs         string
 }
