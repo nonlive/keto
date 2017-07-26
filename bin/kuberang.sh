@@ -4,11 +4,12 @@
 exec 5>&1
 
 # Poll for API to be available
-MAX_RETRIES=${1:-30}
-WAIT_TIME=5
-RETRIES=0
+max_retries=${1:-30}
+wait_time=5
+retries=0
 
-echo "Waiting for Kube API readiness..."
+echo "[INFO] Executing kuberang test to validate cluster health"
+echo "[DEBUG] Waiting for Kube API readiness..."
 
 PREP_STATE="Checking Kube API availability."
 while true ; do
@@ -22,13 +23,13 @@ while true ; do
     fi
   fi
 
-  RETRIES=$((RETRIES + 1))
-  if [[ ${RETRIES} -eq ${MAX_RETRIES} ]]; then
+  retries=$((retries + 1))
+  if [[ ${retries} -eq ${max_retries} ]]; then
       echo "[ERROR] Max timeout reached. Failed on step: ${PREP_STATE}"
       exit 1
   else
-      echo "[INFO] Attempt #${RETRIES} of #${MAX_RETRIES}: Kube API not yet available, sleeping for ${WAIT_TIME} seconds..."
-      sleep ${WAIT_TIME}
+      echo "[INFO] Attempt #${retries} of #${max_retries}: Kube API not yet available, sleeping for ${wait_time} seconds..."
+      sleep ${wait_time}
   fi
 done
 
