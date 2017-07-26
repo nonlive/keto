@@ -441,7 +441,7 @@ func TestGetKubeAPIURL(t *testing.T) {
 			},
 		}, nil).Once()
 
-	result, err := c.getKubeAPIURL(clusterName)
+	result, err := c.GetKubeAPIURL(clusterName)
 	if err != nil {
 		t.Error(err)
 	}

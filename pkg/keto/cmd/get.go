@@ -17,8 +17,14 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
+	"fmt"
 	"os"
+	"os/exec"
+	"path"
+	"runtime"
 
+	"github.com/UKHomeOffice/keto/pkg/constants"
 	"github.com/UKHomeOffice/keto/pkg/keto"
 
 	"github.com/spf13/cobra"
@@ -129,16 +135,117 @@ func listClusters(cli *cli, names ...string) error {
 	return keto.PrintClusters(keto.GetPrinter(os.Stdout), clusters, true)
 }
 
+var getClusterConfigCmd = &cobra.Command{
+	Use:          "config --cluster [NAME]",
+	Aliases:      clusterConfigCmdAliases,
+	Short:        "Get cluster kubernetes config",
+	Long:         "Get cluster kubernetes config",
+	SilenceUsage: true,
+	PreRunE: func(c *cobra.Command, args []string) error {
+		return validateGetConfigPrecursors(c, args)
+	},
+	RunE: func(c *cobra.Command, args []string) error {
+		return getClusterConfigCmdFunc(c, args)
+	},
+}
+
+func validateGetConfigPrecursors(c *cobra.Command, args []string) error {
+	if !c.Flags().Changed("cluster") {
+		return fmt.Errorf("cluster name must be set: --cluster [NAME]")
+	}
+
+	_, err := exec.LookPath("kubeadm")
+	if err != nil {
+		var binaryDownloadLink bytes.Buffer
+		binaryDownloadLink.WriteString("https://storage.googleapis.com/kubernetes-release/release/")
+		binaryDownloadLink.WriteString(constants.DefaultKubeVersion)
+		binaryDownloadLink.WriteString("/bin/")
+		binaryDownloadLink.WriteString(runtime.GOOS + "/")
+		binaryDownloadLink.WriteString(runtime.GOARCH)
+		binaryDownloadLink.WriteString("/kubeadm")
+
+		return fmt.Errorf(`the executable 'kubeadm' was not found. Retrieve it using the following command:
+curl -Lo %q /usr/local/bin/kubeadm && chmod +x /usr/local/bin/kubeadm
+Note: If the 'kubeadm' binary is not built for your distribution the above link may not work.`, binaryDownloadLink.String())
+	}
+
+	_, err = c.Flags().GetString("cluster")
+	if err != nil {
+		return err
+	}
+
+	assetsDir, err := c.Flags().GetString("assets-dir")
+	if err != nil {
+		return err
+	}
+	if assetsDir == "" {
+		assetsDir, err = os.Getwd()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Check if assets exist, create symlinks from 'kube_ca' files if necessary
+	certName := "ca.crt"
+	keyName := "ca.key"
+
+	if !fileExists(assetsDir) {
+		return fmt.Errorf("assets directory %q does not exist", assetsDir)
+	}
+	if !fileExists(path.Join(assetsDir, certName)) {
+		if !fileExists(path.Join(assetsDir, "kube_" + certName)) {
+			return fmt.Errorf("%q does not exist (kube ca certificate)", path.Join(assetsDir, certName))
+		}
+		os.Symlink(path.Join(assetsDir, "kube_" + certName), path.Join(assetsDir, certName))
+	}
+	if !fileExists(path.Join(assetsDir, keyName)) {
+		if !fileExists(path.Join(assetsDir, "kube_" + keyName)) {
+			return fmt.Errorf("%q does not exist (kube ca private key)", path.Join(assetsDir, keyName))
+		}
+		os.Symlink(path.Join(assetsDir, "kube_" + keyName), path.Join(assetsDir, keyName))
+	}
+
+	return nil
+}
+
+func getClusterConfigCmdFunc(c *cobra.Command, args []string) error {
+	clusterName, _ := c.Flags().GetString("cluster")
+	assetsDir, _ := c.Flags().GetString("assets-dir")
+	outputFile, _ := c.Flags().GetString("output-file")
+
+	cli, err := newCLI(c)
+	if err != nil {
+		return err
+	}
+
+	config, err := cli.ctrl.GetClusterConfig(clusterName, assetsDir)
+	if err != nil {
+		return err
+	}
+
+	return keto.PrintClusterConfig(keto.GetPrinter(os.Stdout), config, outputFile)
+}
+
 func init() {
 	getCmd.AddCommand(
 		getClusterCmd,
 		getMasterPoolCmd,
 		getComputePoolCmd,
+		getClusterConfigCmd,
 	)
 
 	// Add flags that are relevant to different subcommands.
 	addClusterFlag(
 		getMasterPoolCmd,
 		getComputePoolCmd,
+		getClusterConfigCmd,
+	)
+
+	addAssetsDirFlag(
+		getClusterConfigCmd,
+	)
+
+	addConfigOutputFileFlag(
+		getClusterConfigCmd,
 	)
 }

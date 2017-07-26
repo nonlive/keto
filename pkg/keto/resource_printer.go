@@ -19,6 +19,7 @@ package keto
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"text/tabwriter"
 
@@ -86,6 +87,28 @@ func PrintComputePool(w *tabwriter.Writer, pools []*model.ComputePool, headers b
 		data = append(data, []string{p.Name, p.ClusterName, p.KubeVersion, p.CoreOSVersion, p.MachineType, labels})
 	}
 	fmt.Fprintln(w, formatData(data))
+	return w.Flush()
+}
+
+func PrintClusterConfig(w *tabwriter.Writer, config string, outputFile string) error {
+	if len(outputFile) < 1 {
+		fmt.Fprintln(w, config)
+		return w.Flush()
+	}
+
+	_, err := os.Stat(outputFile)
+	if !os.IsNotExist(err) {
+		return err
+	}
+
+	file, err := os.Create(outputFile)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(config)
+	file.Sync()
 	return w.Flush()
 }
 

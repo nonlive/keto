@@ -10,12 +10,6 @@ set +e
 WORKINGDIR="${GOPATH}/src/github.com/UKHomeOffice/keto"
 KETO_ASSETS_DIR=${KETO_ASSETS_DIR:-${PWD}}
 
-function generate_kube_config() {
-    API_ADDR="https://$(aws cloudformation describe-stacks --stack-name keto-${CLUSTER_NAME}-elb --query "Stacks[0].Outputs[?OutputKey=='ELBDNS'].OutputValue" --output text)"
-    mkdir -p ~/.kube/
-    kubeadm alpha phase kubeconfig client-certs --client-name kubernetes-admin --organization system:masters --server ${API_ADDR} --cert-dir ${KETO_ASSETS_DIR} > ~/.kube/config
-}
-
 function cleanup() {
     echo "[INFO] Attempting to delete keto cluster '${CLUSTER_NAME}'"
     keto --cloud ${KETO_CLOUD_PROVIDER} delete cluster ${CLUSTER_NAME}
@@ -33,7 +27,8 @@ function run_e2e_test() {
 
     # TODO: Modify once Keto adds capability to auto generate config using the client cli
     echo "[INFO] Generating Kubernetes config"
-    generate_kube_config || return
+    mkdir -p ~/.kube
+    keto get config --cloud aws --cluster ${CLUSTER_NAME} --assets-dir ${KETO_ASSETS_DIR} --output-file ~/.kube/config || return
 
     echo "[INFO] Executing kuberang test to validate cluster health"
     ${WORKINGDIR}/bin/kuberang.sh 180 || return
