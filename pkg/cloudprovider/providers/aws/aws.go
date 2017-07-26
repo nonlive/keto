@@ -67,6 +67,9 @@ const (
 var (
 	// ErrNotImplemented defines an error for not implemented features.
 	ErrNotImplemented = errors.New("not implemented")
+	// These are currently hardcoded as AWS does not expose them via the API
+	machinePrefixes = []string{"t2", "m3", "m4", "r4", "r3", "c4", "c3", "p2", "g2", "f1", "i3", "x1", "i3", "d2"}
+	machineSuffixes = []string{"micro", "small", "medium", "large", "xlarge", "2xlarge", "4xlarge", "8xlarge"}
 )
 
 // Cloud is an implementation of cloudprovider.Interface.
@@ -120,6 +123,10 @@ func (c *Cloud) CreateClusterInfra(cluster model.Cluster) error {
 		return err
 	}
 	c.Logger.Printf("found %q VPC ID", vpcID)
+
+	if validMachine := validateMachineType(cluster.MasterPool.MachineType); !validMachine {
+		return fmt.Errorf("invalid Machine type %q", cluster.MasterPool.MachineType)
+	}
 
 	if err := c.createClusterInfraStack(cluster, vpcID, subnets); err != nil {
 		return err
@@ -423,6 +430,10 @@ func (c *Cloud) CreateMasterPool(p model.MasterPool) error {
 		return err
 	}
 
+	if validMachine := validateMachineType(p.MachineType); !validMachine {
+		return fmt.Errorf("invalid Machine type %q", p.MachineType)
+	}
+
 	elbName, err := c.getELBName(p.ClusterName)
 	if err != nil {
 		return err
@@ -477,6 +488,10 @@ func (c *Cloud) CreateComputePool(p model.ComputePool) error {
 	}
 	if *subnets[0].VpcId != vpcID {
 		return fmt.Errorf("networks must belong to %q VPC", vpcID)
+	}
+
+	if validMachine := validateMachineType(p.MachineType); !validMachine {
+		return fmt.Errorf("invalid Machine type %q", p.MachineType)
 	}
 
 	infraStackName := makeClusterInfraStackName(p.ClusterName)
@@ -822,4 +837,37 @@ func newCloud(sess *session.Session, l cloudprovider.Logger) (*Cloud, error) {
 		r53:    route53.New(sess),
 	}
 	return c, nil
+}
+
+// validateMachineType checks whether the given machine type is valid and returns true if so
+func validateMachineType(machine string) bool {
+
+	machineSplit := strings.Split(machine, ".")
+	if len(machineSplit) != 2 {
+		return false
+	}
+	prefixCorrect := false
+	suffixCorrect := false
+
+	for _, p := range machinePrefixes {
+		if p == machineSplit[0] {
+			prefixCorrect = true
+		}
+	}
+
+	if !prefixCorrect {
+		return false
+	}
+
+	for _, s := range machineSuffixes {
+		if s == machineSplit[1] {
+			suffixCorrect = true
+		}
+	}
+
+	if !suffixCorrect {
+		return false
+	}
+
+	return true
 }

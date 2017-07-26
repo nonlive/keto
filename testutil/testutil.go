@@ -41,7 +41,7 @@ func MakeNodePool(clusterName, name string) model.NodePool {
 
 	spec := model.NodePoolSpec{
 		KubeVersion:   "v1.7.0",
-		MachineType:   "tiny",
+		MachineType:   "t2.medium",
 		CoreOSVersion: "CoreOS-beta-1409.1.0-hvm",
 		SSHKey:        "s3cr3tkey",
 		DiskSize:      10,
