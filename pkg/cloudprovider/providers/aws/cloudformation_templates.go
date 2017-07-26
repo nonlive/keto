@@ -390,25 +390,6 @@ Resources:
             Effect: Allow
             Action:
               - autoscaling:DescribeAutoScalingGroups
-              - ec2:CreateTags
-              - ec2:DescribeTags
-              - ec2:DescribeInstances
-          - Resource: "arn:aws:s3:::{{ .AssetsBucketName }}"
-            Effect: Allow
-            Action:
-              - "s3:List*"
-          - Resource: "arn:aws:s3:::{{ .AssetsBucketName }}/*"
-            Effect: Allow
-            Action:
-              - "s3:Get*"
-          - Resource:
-              - Fn::Sub: "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/{{ .StackName }}/*"
-            Effect: Allow
-            Action:
-              - cloudformation:DescribeStacks
-          - Resource: "*"
-            Effect: Allow
-            Action:
               - ec2:AttachNetworkInterface
               - ec2:AttachVolume
               - ec2:AuthorizeSecurityGroupEgress
@@ -435,15 +416,33 @@ Resources:
               - ec2:ModifyNetworkInterfaceAttribute
               - ec2:RevokeSecurityGroupEgress
               - ec2:RevokeSecurityGroupIngress
-              - elasticloadbalancing:ConfigureHealthCheck
               - elasticloadbalancing:Create*
+              - elasticloadbalancing:Describe*
+          - Resource: "arn:aws:s3:::{{ .AssetsBucketName }}"
+            Effect: Allow
+            Action:
+              - "s3:List*"
+          - Resource: "arn:aws:s3:::{{ .AssetsBucketName }}/*"
+            Effect: Allow
+            Action:
+              - "s3:Get*"
+          - Resource:
+              - Fn::Sub: "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/{{ .StackName }}/*"
+            Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
+          - Resource: "*"
+            Effect: Allow
+            Action:
+              - elasticloadbalancing:ConfigureHealthCheck
               - elasticloadbalancing:Delete*
               - elasticloadbalancing:DeregisterInstancesFromLoadBalancer
-              - elasticloadbalancing:DescribeLoadBalancerAttributes
-              - elasticloadbalancing:DescribeLoadBalancers
               - elasticloadbalancing:ModifyLoadBalancerAttributes
               - elasticloadbalancing:RegisterInstancesWithLoadBalancer
               - elasticloadbalancing:SetLoadBalancerPoliciesForBackendServer
+            Condition:
+              StringEquals:
+                'elasticloadbalancing:ResourceTag/cluster-name': "{{ .MasterPool.ClusterName }}"
 
 {{ $masterPool := .MasterPool -}}
 {{ $userData := .UserData -}}
@@ -660,13 +659,19 @@ Resources:
         - !Ref InstanceRole
       PolicyDocument:
         Statement:
-          - Resource: "*"
+          - Resource:
+              - Fn::Sub: "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
             Effect: Allow
             Action:
               - ec2:CreateTags
-              - ec2:DescribeInstances
-              - ec2:DescribeTags
-              - ec2:DescribeVpcs
+            Condition:
+              StringEquals:
+                'ec2:ResourceTag/cluster-name': "{{ .ComputePool.ClusterName }}"
+                'aws:RequestTag/KubeletToken': "Success"
+          - Resource: "*"
+            Effect: Allow
+            Action:
+              - "ec2:Describe*"
           - Resource:
               - Fn::Sub: "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/{{ .StackName }}/*"
             Effect: Allow
