@@ -2,7 +2,7 @@ package constants
 
 const (
 	// DefaultKubeVersion specifies a default kubernetes version.
-	DefaultKubeVersion = "v1.7.0"
+	DefaultKubeVersion = "v1.7.2"
 	// DefaultNetworkProvider specifies what CNI provider to install
 	DefaultNetworkProvider = "canal"
 	// DefaultKetoK8Image specifies the image to use for keto-k8 container
@@ -14,7 +14,7 @@ const (
 	// DefaultCoreOSVersion specifies a default CoreOS version.
 	// TODO only works for AWS cloud for now. Need to figure out some sort of
 	// validation and CoreOS version to cloud image name mapping.
-	DefaultCoreOSVersion = "CoreOS-stable-1353.8.0-hvm"
+	DefaultCoreOSVersion = "CoreOS-stable-1409.7.0-hvm"
 
 	// ClusterNameLabelKey label key name for cluster name label.
 	ClusterNameLabelKey = "cluster-name"
